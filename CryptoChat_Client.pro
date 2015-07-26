@@ -92,5 +92,9 @@ RESOURCES += \
 ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android
 
 OTHER_FILES += \
+<<<<<<< HEAD
     android/AndroidManifest.xml \
     crypto/AES.asm
+=======
+    android/AndroidManifest.xml
+>>>>>>> a5b851015b90aeb046f9ab54341041d183ea1469
