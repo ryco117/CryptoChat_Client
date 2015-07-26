@@ -45,23 +45,26 @@ Client::Client()
 bool Client::SeedPRNG(FortunaPRNG& fprng)
 {
 	//Properly Seed
-	FILE* random;
-
 	uint32_t* seed = new uint32_t[20];
-	random = fopen ("/dev/urandom", "r");						//Unix provides it, why not use it
-	if(random == NULL)
-	{
-		fprintf(stderr, "Cannot open /dev/urandom!\n");			//THIS IS BAD!!!!
-		delete[] seed;
-		return false;
-	}
-	for(int i = 0; i < 20; i++)
-	{
-		fread(&seed[i], sizeof(uint32_t), 1, random);
-		srand(seed[i]); 		//seed the default random number generator
-	}
-	fprng.Seed((unsigned char*)seed, sizeof(uint32_t) * 20);
-	fclose(random);
+	#ifdef WINDOWS
+		RtlGenRandom(seed, sizeof(uint32_t) * 20);
+	#else
+		FILE* random;
+		random = fopen ("/dev/urandom", "r");						//Unix provides it, why not use it
+		if(random == NULL)
+		{
+			fprintf(stderr, "Cannot open /dev/urandom!\n");			//THIS IS BAD!!!!
+			delete[] seed;
+			return false;
+		}
+		for(int i = 0; i < 20; i++)
+		{
+			fread(&seed[i], sizeof(uint32_t), 1, random);
+			srand(seed[i]); 		//seed the default random number generator
+		}
+		fprng.Seed((unsigned char*)seed, sizeof(uint32_t) * 20);
+		fclose(random);
+	#endif
 	memset(seed, 0, sizeof(uint32_t) * 20);
 	delete[] seed;
 	return true;
@@ -305,8 +308,8 @@ bool Client::ReceiveData()
 
 		//Send "case 13" saying we read this message successfully, and don't need to be pushed it again.
 		buffer[0] = '\x0D';
-		uint32_t s_net = htonl((uint32_t)(1 + 4 + 4 + 16 + msgLen));			//The extra constants are important to the server
-		memcpy(&buffer[5], &s_net, 4);
+		uint32_t sNet = htonl((uint32_t)(1 + 4 + 4 + 16 + msgLen));			//The extra constants are important to the server
+		memcpy(&buffer[5], &sNet, 4);
 		send(Server, buffer, 1 + 4 + 4, 0);
 		return true;
 	}
@@ -532,8 +535,8 @@ bool Client::ReceiveData()
 
 						//Send "case 13" saying we read this message successfully, and don't need to be pushed it again.
 						buffer[0] = '\x0D';
-						uint32_t s_net = htonl((uint32_t)(1 + 4 + 4 + 16 + msgLen));			//The extra constants are important to the server
-						memcpy(&buffer[5], &s_net, 4);
+						uint32_t sNet = htonl((uint32_t)(1 + 4 + 4 + 16 + msgLen));			//The extra constants are important to the server
+						memcpy(&buffer[5], &sNet, 4);
 						send(Server, buffer, 1 + 4 + 4, 0);
 					}
 				}

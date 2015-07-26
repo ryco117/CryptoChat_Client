@@ -70,17 +70,17 @@ linux:!android: PRE_TARGETDEPS += /usr/local/lib/libscrypt.a
 linux:android: PRE_TARGETDEPS += /usr/android-toolchain-21/lib/libscrypt.a
 
 linux:!android: OBJECTS += ../CryptoChat_Client/crypto/AES.o
+linux:!android: OTHER_FILES += \
+    ../CryptoChat_Client/crypto/AES.o
 
-win32: LIBS += C:\Library\libgmpxx.a
-win32: LIBS += C:\Library\libgmp.a
 win32: LIBS += -lWs2_32
 win32: LIBS += -lAdvapi32
 win32: LIBS += C:\Library\libscrypt.a
 
 win32: INCLUDEPATH += $$PWD/../../../../../../Include
 win32: DEPENDPATH += $$PWD/../../../../../../Include
-
-linux:!android: OTHER_FILES += \
+win32: OBJECTS += ../CryptoChat_Client/crypto/AES.o
+win32: OTHER_FILES += \
     ../CryptoChat_Client/crypto/AES.o
 
 CONFIG += mobility
@@ -89,12 +89,12 @@ MOBILITY =
 RESOURCES += \
     resource.qrc
 
-ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android
+#ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android
 
-OTHER_FILES += \
-<<<<<<< HEAD
-    android/AndroidManifest.xml \
-    crypto/AES.asm
-=======
-    android/AndroidManifest.xml
->>>>>>> a5b851015b90aeb046f9ab54341041d183ea1469
+#OTHER_FILES += \
+#<<<<<<< HEAD
+#    android/AndroidManifest.xml \
+#    crypto/AES.asm
+#=======
+#    android/AndroidManifest.xml
+#>>>>>>> a5b851015b90aeb046f9ab54341041d183ea1469
