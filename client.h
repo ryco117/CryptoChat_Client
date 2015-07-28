@@ -23,6 +23,8 @@
 #include <string>
 #include <vector>
 #include <string.h>
+#include <fcntl.h>
+#include <errno.h>
 
 #include "Contact.cpp"
 #include "Conversation.cpp"
@@ -115,7 +117,6 @@ private:
 	int GetConvIndex(uint32_t convID);
 	int GetContactIndex(uint32_t contactID);
 	bool SeedPRNG(FortunaPRNG& fprng);
-	int recvr(int socket, char* buffer, int length, int flags);
 };
 
 #endif // CLIENT_H

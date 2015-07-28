@@ -98,3 +98,6 @@ RESOURCES += \
 #=======
 #    android/AndroidManifest.xml
 #>>>>>>> a5b851015b90aeb046f9ab54341041d183ea1469
+
+OTHER_FILES += \
+    LICENSE

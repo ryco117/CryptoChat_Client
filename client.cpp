@@ -3,14 +3,34 @@
 std::vector<Contact> DropIndex(std::vector<Contact> v, unsigned int i);
 bool IsIP(string& IP);
 u_long Resolve(string& addr);
+int recvr(int socket, char* buffer, int length, int flags);
+int connect_timeout(int fd, const sockaddr* addr, socklen_t len, timeval timeout);
 
 Client::Client()
 {
 	memset(zeroArray, 0, 48);
+	err = 0;
 	seedSuccessfull = false;
 	if(!SeedPRNG(fprng))											//If it's not secure, kill it!!
 		return;
 	seedSuccessfull = true;
+
+	#ifdef WINDOWS
+		//Why Windows needs this, I don't know... Why can't everthing just be a file???
+		WSADATA wsaData;
+		int error = WSAStartup(0x0202, &wsaData); //start and fill results into wsaData and output error
+		if(error)
+		{
+			err = -1;
+			return;					//Something went wrong
+		}
+		if(wsaData.wVersion != 0x0202)
+		{
+			err = -2;
+			WSACleanup();			//Wrong wsaData version(not 2.2)
+			return;
+		}
+	#endif
 
 	//DEFAULTS
 	FD_ZERO(&master);
@@ -153,6 +173,7 @@ int Client::ConnectToServer()
 	memset(&socketInfo, 0, sizeof(socketInfo));						//Clear socketInfo to be filled with client stuff
 	socketInfo.sin_family = AF_INET;								//uses IPv4 addresses
 
+	timeval connectTimeout = {4, 0};
 	if(!useProxy)
 	{
 		if(IsIP(serverAddr))
@@ -168,7 +189,7 @@ int Client::ConnectToServer()
 		}
 
 		socketInfo.sin_port = htons(serverPort);						//use serverPort
-		if((err = connect(Server, (struct sockaddr*)&socketInfo, sizeof(socketInfo))) != 0)
+		if((err = connect_timeout(Server, (struct sockaddr*)&socketInfo, sizeof(socketInfo), connectTimeout)) != 0)
 		{
 			Disconnect();
 			return -2;
@@ -189,7 +210,7 @@ int Client::ConnectToServer()
 		}
 		socketInfo.sin_port = htons(proxyPort);						//use serverPort
 
-		if((err = connect(Server, (struct sockaddr*)&socketInfo, sizeof(struct sockaddr_in))) != 0)
+		if((err = connect_timeout(Server, (struct sockaddr*)&socketInfo, sizeof(struct sockaddr_in), connectTimeout)) != 0)
 		{
 			Disconnect();
 			return -4;
@@ -257,8 +278,11 @@ int Client::ConnectToServer()
 bool Client::DataWaiting()
 {
 	read_fds = master;
-	if(select(fdmax+1, &read_fds, NULL, NULL, &wait) == -1)
+	timeval w = {wait.tv_sec, wait.tv_usec};
+	if(select(fdmax+1, &read_fds, 0, 0, &w) == -1)
+	{
 		return false;
+	}
 
 	return FD_ISSET(Server, &read_fds);
 }
@@ -267,7 +291,13 @@ bool Client::DataWaiting()
 bool Client::ReceiveData()
 {
 	uint8_t type = buffer[0];
-	recvr(Server, buffer, 1, 0);
+	int bytes = recvr(Server, buffer, 1, 0);
+	if(bytes != 1)
+	{
+		Disconnect();
+		errStr = "Lost connection with server";
+		return false;
+	}
 	if(buffer[0] == '\0')
 	{
 		recvr(Server, &buffer[1], 4, 0);
@@ -1094,19 +1124,6 @@ int Client::GetContactIndex(uint32_t contactID)
 	return contactIndex;
 }
 
-int Client::recvr(int socket, char* buffer, int length, int flags)
-{
-	int i = 0;
-	while(i < length)
-	{
-		int n = recv(socket, &buffer[i], length-i, flags);
-		if(n <= 0)
-			return n;
-		i += n;
-	}
-	return i;
-}
-
 Client::~Client()
 {
 	memset(userPrivate, 0, 32);
@@ -1203,4 +1220,71 @@ u_long Resolve(string& addr)
 	freeaddrinfo(info);
 
 	return IP;
+}
+
+int recvr(int socket, char* buffer, int length, int flags)
+{
+	int i = 0;
+	while(i < length)
+	{
+		int n = recv(socket, &buffer[i], length-i, flags);
+		if(n <= 0)
+			return n;
+		i += n;
+	}
+	return i;
+}
+
+int connect_timeout(int fd, const sockaddr* addr, socklen_t len, timeval timeout)
+{
+	fd_set readset, writeset;
+	FD_ZERO(&readset);
+	FD_SET(fd, &readset);
+	writeset = readset;
+
+	int flags = fcntl(fd, F_GETFL, 0);
+	if(flags < 0)
+		return -1;				//Couldn't get socket flags
+
+	if(fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
+		return -1;				//Couldn't set socket flags
+
+	int r = connect(fd, addr, len);
+	if(r < 0)
+	{
+		if(errno != EINPROGRESS)
+			return -1;			//Couldn't connect, and not currently trying to connect
+	}
+	if(r != 0)
+	{
+		r = select(fd + 1, &readset, &writeset, 0, &timeout);
+		if(r < 0)
+			return -1;			//Select failed
+		if(r == 0)
+		{   //we had a timeout
+			errno = ETIMEDOUT;
+			return -1;			//Timeout occured
+		}
+
+		int error = 0;
+		socklen_t errLen = sizeof(error);
+
+		if(FD_ISSET(fd, &readset) || FD_ISSET(fd, &writeset))
+		{
+			if(getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &errLen) < 0)
+				return -1;		//There was an error
+		}
+		else
+			return -1;			//Select told us there were sockets ready, but it's not fd!
+
+		if(error)
+		{
+			errno = error;
+			return -1;
+		}
+	}
+	if(fcntl(fd, F_SETFL, flags) < 0)
+		return -1;				//Couldn't set socket flags
+
+	return 0;					//SUCCESS!!
 }

@@ -183,7 +183,7 @@ void MainWindow::Update()
 	if(client->DataWaiting())
 	{
 		if(!client->ReceiveData())
-
+			DisplayClientError();
 
 		RefreshMessages();
 	}
@@ -400,7 +400,7 @@ void MainWindow::Create_AccountAction()
 
 			uint32_t userID = client->CreateUser(passwd);
 			if(userID)
-				DisplayMsg("Success!", tr("Account ") + QString::number(userID) +tr(" was successfully created!"), QMessageBox::Information, QMessageBox::Ok);
+				DisplayMsg("Success!", tr("Account <b>ID ") + QString::number(userID) +tr("</b> was successfully created!"), QMessageBox::Information, QMessageBox::Ok);
 			else
 				DisplayClientError();
 		}
@@ -424,6 +424,8 @@ void MainWindow::LogoutAction()
 	ui->conversationListWidget->clear();
 	ui->messagesListWidget->clear();
 	client->conversations.clear();
+
+	View(ui->loginWidget);
 }
 
 void MainWindow::GetPublicKeyAction()
