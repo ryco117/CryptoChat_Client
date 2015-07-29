@@ -14,7 +14,7 @@ MainWindow::MainWindow(QWidget* parent) :QMainWindow(parent), ui(new Ui::MainWin
 	ui->actionGet_Public_Key->setVisible(false);
 	ui->actionSync->setVisible(false);
 
-	View(ui->loginWidget);
+	View(ui->networkingWidget);
 
 	ConnectToServer();
 	this->resize(QSize(500, 400));
@@ -39,6 +39,9 @@ MainWindow::MainWindow(QWidget* parent) :QMainWindow(parent), ui(new Ui::MainWin
 	ui->contactListWidget->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(ui->contactListWidget, SIGNAL(customContextMenuRequested(const QPoint&)), this, SLOT(userContactListMenuRequested(const QPoint&)));
 	connect(ui->contactListWidget, SIGNAL(itemDoubleClicked(QListWidgetItem*)), this, SLOT(OpenConvWithContact(QListWidgetItem*)));
+
+	if(client->ServerConnected())
+		View(ui->loginWidget);
 }
 
 void MainWindow::CreateActions()

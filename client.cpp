@@ -173,7 +173,7 @@ int Client::ConnectToServer()
 	memset(&socketInfo, 0, sizeof(socketInfo));						//Clear socketInfo to be filled with client stuff
 	socketInfo.sin_family = AF_INET;								//uses IPv4 addresses
 
-	timeval connectTimeout = {4, 0};
+	timeval connectTimeout = {5, 0};
 	if(!useProxy)
 	{
 		if(IsIP(serverAddr))
@@ -191,6 +191,7 @@ int Client::ConnectToServer()
 		socketInfo.sin_port = htons(serverPort);						//use serverPort
 		if((err = connect_timeout(Server, (struct sockaddr*)&socketInfo, sizeof(socketInfo), connectTimeout)) != 0)
 		{
+			cerr << err << endl;
 			Disconnect();
 			return -2;
 		}
@@ -1242,28 +1243,38 @@ int connect_timeout(int fd, const sockaddr* addr, socklen_t len, timeval timeout
 	FD_SET(fd, &readset);
 	writeset = readset;
 
-	int flags = fcntl(fd, F_GETFL, 0);
-	if(flags < 0)
-		return -1;				//Couldn't get socket flags
+	#ifdef WINDOWS
+		unsigned long iMode = 1;
+		if(ioctlsocket(fd, FIONBIO, &iMode) != 0)
+			return -1;						//Couldn't set socket to non-blocking
+	#else
+		int flags = fcntl(fd, F_GETFL, 0);
+		if(flags < 0)
+			return -1;						//Couldn't get socket flags
 
-	if(fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
-		return -1;				//Couldn't set socket flags
-
+		if(fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
+			return -1;						//Couldn't set socket flags
+	#endif
 	int r = connect(fd, addr, len);
 	if(r < 0)
 	{
-		if(errno != EINPROGRESS)
-			return -1;			//Couldn't connect, and not currently trying to connect
+		#ifdef WINDOWS
+			if(WSAGetLastError() != WSAEINPROGRESS && WSAGetLastError() != WSAEWOULDBLOCK)
+				return -2;
+		#else
+			if(errno != EINPROGRESS)
+				return -2;						//Couldn't connect, and not currently trying to connect
+		#endif
 	}
 	if(r != 0)
 	{
 		r = select(fd + 1, &readset, &writeset, 0, &timeout);
 		if(r < 0)
-			return -1;			//Select failed
+			return -3;						//Select failed
 		if(r == 0)
 		{   //we had a timeout
 			errno = ETIMEDOUT;
-			return -1;			//Timeout occured
+			return -4;						//Timeout occured
 		}
 
 		int error = 0;
@@ -1271,20 +1282,26 @@ int connect_timeout(int fd, const sockaddr* addr, socklen_t len, timeval timeout
 
 		if(FD_ISSET(fd, &readset) || FD_ISSET(fd, &writeset))
 		{
-			if(getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &errLen) < 0)
-				return -1;		//There was an error
+			if(getsockopt(fd, SOL_SOCKET, SO_ERROR, (const void*)&error, &errLen) < 0)
+				return -5;					//There was an error
 		}
 		else
-			return -1;			//Select told us there were sockets ready, but it's not fd!
+			return -6;						//Select told us there were sockets ready, but it's not fd!
 
 		if(error)
 		{
 			errno = error;
-			return -1;
+			return -7;
 		}
 	}
-	if(fcntl(fd, F_SETFL, flags) < 0)
-		return -1;				//Couldn't set socket flags
+	#ifdef WINDOWS
+		iMode = 0;
+		if(ioctlsocket(fd, FIONBIO, &iMode) != 0)
+			return -8;						//Couldn't set socket to blocking
+	#else
+		if(fcntl(fd, F_SETFL, flags) < 0)
+			return -8;						//Couldn't set socket flags
+	#endif
 
-	return 0;					//SUCCESS!!
+	return 0;								//SUCCESS!!
 }

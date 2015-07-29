@@ -16,6 +16,7 @@
 	#include <unistd.h>
 	#include <arpa/inet.h>
 	#include <netdb.h>
+	#include <fcntl.h>
 	#include "CloseSocket.cpp"
 #endif
 
@@ -23,7 +24,6 @@
 #include <string>
 #include <vector>
 #include <string.h>
-#include <fcntl.h>
 #include <errno.h>
 
 #include "Contact.cpp"
