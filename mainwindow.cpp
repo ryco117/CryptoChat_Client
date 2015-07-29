@@ -680,6 +680,8 @@ void MainWindow::on_serverAddrLine_returnPressed()
 	}
 
 	ConnectToServer();
+	if(client->ServerConnected())
+		View(ui->loginWidget);
 }
 
 void MainWindow::on_proxyCB_toggled(bool checked)
@@ -696,16 +698,7 @@ void MainWindow::on_proxyAddrLine_returnPressed()
 
 void MainWindow::on_proxyConnectButton_clicked()
 {
-	if(client->ServerConnected())
-	{
-		if(client->SignedIn())
-			timer.stop();
-
-		client->Disconnect();
-	}
-
-	//Reconnect normally (But now we know proxy if definitely going to be set)
-	ConnectToServer();
+	on_serverAddrLine_returnPressed();
 }
 
 void MainWindow::on_messageLineEdit_returnPressed()
@@ -734,7 +727,7 @@ MainWindow::~MainWindow()
 		if(client->SignedIn())
 			timer.stop();
 
-		cerr << "Safe disconnect\n";
+		cout << "Safe disconnect\n";
 		client->Disconnect();
 	}
 	delete ui;

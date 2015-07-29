@@ -82,9 +82,9 @@ bool Client::SeedPRNG(FortunaPRNG& fprng)
 			fread(&seed[i], sizeof(uint32_t), 1, random);
 			srand(seed[i]); 		//seed the default random number generator
 		}
-		fprng.Seed((unsigned char*)seed, sizeof(uint32_t) * 20);
 		fclose(random);
 	#endif
+	fprng.Seed((unsigned char*)seed, sizeof(uint32_t) * 20);
 	memset(seed, 0, sizeof(uint32_t) * 20);
 	delete[] seed;
 	return true;
@@ -191,7 +191,6 @@ int Client::ConnectToServer()
 		socketInfo.sin_port = htons(serverPort);						//use serverPort
 		if((err = connect_timeout(Server, (struct sockaddr*)&socketInfo, sizeof(socketInfo), connectTimeout)) != 0)
 		{
-			cerr << err << endl;
 			Disconnect();
 			return -2;
 		}
@@ -931,7 +930,6 @@ bool Client::AddToConversation(unsigned int contactID, unsigned int convID)
 	}
 }
 
-//NEEDS TESTING
 bool Client::SendMessage(uint32_t convID, const char* msg, unsigned int msgLen)
 {
 	if(signedIn)

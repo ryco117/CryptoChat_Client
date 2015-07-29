@@ -2,7 +2,7 @@
 #define AES_CPP
 #include "AES.h"
 
-#ifndef ARM
+#ifndef NO_NI
 extern "C"
 {
 	bool AESNI();
@@ -15,7 +15,7 @@ extern "C"
 
 void AES::Encrypt(const char* Msg, unsigned int MsgLen, const uint8_t* IV, const uint8_t* Key, char* CipherText)
 {
-	#ifndef ARM
+	#ifndef NO_NI
 	if(AESNI())
 	{
 		#ifdef WINDOWS
@@ -91,7 +91,7 @@ void AES::Encrypt(const char* Msg, unsigned int MsgLen, const uint8_t* IV, const
 //The same as encrypt but in reverse...
 int AES::Decrypt(const char* Cipher, unsigned int CipherLen, const uint8_t* IV, const uint8_t* Key, char* PlainText)
 {
-	#ifndef ARM
+	#ifndef NO_NI
 	if(AESNI())
 	{
 		#ifdef WINDOWS
