@@ -113,9 +113,9 @@ public:
 	bool FetchMessages();
 	bool UpdateNickname(uint32_t contactID, const char* nickName = 0, unsigned int nickLen = 0);
 
-private:
 	int GetConvIndex(uint32_t convID);
 	int GetContactIndex(uint32_t contactID);
+private:
 	bool SeedPRNG(FortunaPRNG& fprng);
 };
 

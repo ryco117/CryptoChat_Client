@@ -41,7 +41,7 @@ MainWindow::MainWindow(QWidget* parent) :QMainWindow(parent), ui(new Ui::MainWin
 	connect(ui->contactListWidget, SIGNAL(itemDoubleClicked(QListWidgetItem*)), this, SLOT(OpenConvWithContact(QListWidgetItem*)));
 
 	if(client->ServerConnected())
-		View(ui->loginWidget);
+		LoginAction();
 }
 
 void MainWindow::CreateActions()
@@ -113,7 +113,7 @@ void MainWindow::RefreshContacts()
 	ui->contactListWidget->clear();
 	for(unsigned int i = 0; i < client->contacts.size(); i++)
 	{
-		QListWidgetItem* item = new QListWidgetItem((client->contacts[i].HasNickname())?tr(client->contacts[i].GetNickname()):QString::number(client->contacts[i].GetContactID()),\
+		QListWidgetItem* item = new QListWidgetItem((client->contacts[i].HasNickname())?client->contacts[i].GetNickname():QString::number(client->contacts[i].GetContactID()),\
 							ui->contactListWidget);
 		item->setIcon(QIcon(":/new/img/contact.png"));
 	}
@@ -132,14 +132,42 @@ void MainWindow::RefreshConvs()
 
 void MainWindow::RefreshMessages()
 {
-	ui->messagesListWidget->clear();
+	ui->messagesTableWidget->setRowCount(0);
 	if(openConvIndex == -1)
 		return;
 
 	std::vector<Msg> msgs = client->conversations[openConvIndex].GetMsgs();
 	for(unsigned int i = 0; i < msgs.size(); i++)
 	{
-		new QListWidgetItem(msgs[i].msg, ui->messagesListWidget);
+		//new QListWidgetItem(msgs[i].msg, ui->messagesListWidget);
+		int newRow = ui->messagesTableWidget->rowCount();
+		ui->messagesTableWidget->insertRow(newRow);
+
+		QString str;
+		QColor c;
+		if(msgs[i].senderID != client->GetUserID())
+		{
+			int index = client->GetContactIndex(msgs[i].senderID);
+			if(index == -1)
+				str = QString::number(client->contacts[index].GetContactID());
+			else
+				str = (client->contacts[index].HasNickname())?client->contacts[index].GetNickname():QString::number(client->contacts[index].GetContactID());
+			c = QColor(150, 200, 255, 110);
+		}
+		else
+		{
+			str = "Me";
+			c = QColor(150, 255, 200, 110);
+		}
+
+		QTableWidgetItem* item = new QTableWidgetItem(str);
+		item->setBackgroundColor(c);
+		item->setFlags(item->flags() ^ Qt::ItemIsEditable);
+		ui->messagesTableWidget->setItem(newRow, 0, item);
+		item = new QTableWidgetItem(msgs[i].msg);
+		item->setBackgroundColor(c);
+		item->setFlags(item->flags() ^ Qt::ItemIsEditable);
+		ui->messagesTableWidget->setItem(newRow, 1, item);
 	}
 }
 
@@ -246,9 +274,6 @@ void MainWindow::CreateConv()
 	uint32_t convID = client->CreateConversation(client->contacts[contactIndex].GetContactID());
 	if(convID == 0)
 		DisplayClientError();
-	/*
-	else
-		DisplayMsg("Success!", tr("Conversation ") + QString::number(convID) +tr(" was successfully created!"), QMessageBox::Information, QMessageBox::Ok);/**/
 
 	RefreshConvs();
 	contactIndex = -1;
@@ -382,6 +407,7 @@ void MainWindow::LeaveConv()
 void MainWindow::LoginAction()
 {
 	View(ui->loginWidget);
+	ui->userLine->setFocus();
 }
 
 void MainWindow::Create_AccountAction()
@@ -425,10 +451,10 @@ void MainWindow::LogoutAction()
 	ui->contactListWidget->clear();
 	client->contacts.clear();
 	ui->conversationListWidget->clear();
-	ui->messagesListWidget->clear();
+	ui->messagesTableWidget->setRowCount(0);
 	client->conversations.clear();
 
-	View(ui->loginWidget);
+	LoginAction();
 }
 
 void MainWindow::GetPublicKeyAction()
@@ -451,7 +477,7 @@ void MainWindow::Sync()
 	ui->contactListWidget->clear();
 	client->contacts.clear();
 	ui->conversationListWidget->clear();
-	ui->messagesListWidget->clear();
+	ui->messagesTableWidget->setRowCount(0);
 	client->conversations.clear();
 
 	if(!client->FetchContacts())
@@ -681,7 +707,7 @@ void MainWindow::on_serverAddrLine_returnPressed()
 
 	ConnectToServer();
 	if(client->ServerConnected())
-		View(ui->loginWidget);
+		LoginAction();
 }
 
 void MainWindow::on_proxyCB_toggled(bool checked)
@@ -718,7 +744,7 @@ void MainWindow::on_messageLineEdit_returnPressed()
 
 MainWindow::~MainWindow()
 {
-	ui->messagesListWidget->clear();
+	ui->messagesTableWidget->setRowCount(0);
 	ui->contactListWidget->clear();
 	ui->conversationListWidget->clear();
 

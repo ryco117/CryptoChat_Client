@@ -31,17 +31,17 @@ public:
 			memcpy(this->publicKey, publicKey, 32);
 	}
 
-	bool HasNickname()
+	bool HasNickname() const
 	{
 		return (!nickname.empty());
 	}
 
-	unsigned int GetContactID()
+	unsigned int GetContactID() const
 	{
 		return contactID;
 	}
 
-	const char* GetNickname()
+	const char* GetNickname() const
 	{
 		if(HasNickname())
 			return nickname.c_str();
@@ -49,7 +49,7 @@ public:
 			return &zeroByte;
 	}
 
-	const char* GetPublicKey()
+	const char* GetPublicKey() const
 	{
 		return (const char*)publicKey;
 	}

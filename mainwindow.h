@@ -11,6 +11,8 @@
 #include <QSpacerItem>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QTableWidget>
+#include <QTableWidgetItem>
 
 #include <iostream>
 #include "client.h"

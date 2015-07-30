@@ -33,33 +33,46 @@ public:
 				users.push_back(u[i]);
 		}
 	}
+	Conversation(const Conversation& other)
+	{
+		convID = other.GetConvID();
+		this->creatorID = other.GetCreatorID();
+		memcpy(symKey, other.GetSymKey(), 32);
+		this->users = other.GetUsers();
 
-	unsigned int GetConvID()
+		std::vector<Msg> m = other.GetMsgs();
+		for(unsigned int i = 0; i < m.size(); i++)
+		{
+			AddMsg(m[i].senderID, m[i].msg, m[i].msgLen);
+		}
+	}
+
+	unsigned int GetConvID() const
 	{
 		return convID;
 	}
 
-	unsigned int GetCreatorID()
+	unsigned int GetCreatorID() const
 	{
 		return creatorID;
 	}
 
-	const char* GetSymKey()
+	const char* GetSymKey() const
 	{
 		return (const char*)symKey;
 	}
 
-	unsigned int GetUsersNum()
+	unsigned int GetUsersNum() const
 	{
 		return users.size();
 	}
 
-	std::vector<uint32_t> GetUsers()
+	std::vector<uint32_t> GetUsers() const
 	{
 		return users;
 	}
 
-	std::vector<Msg> GetMsgs()
+	std::vector<Msg> GetMsgs() const
 	{
 		return msgs;
 	}

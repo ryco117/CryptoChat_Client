@@ -1,6 +1,6 @@
 #include "client.h"
 
-std::vector<Contact> DropIndex(std::vector<Contact> v, unsigned int i);
+template <class T> std::vector<T> DropIndex(std::vector<T> v, unsigned int i);
 bool IsIP(string& IP);
 u_long Resolve(string& addr);
 int recvr(int socket, char* buffer, int length, int flags);
@@ -161,7 +161,7 @@ unsigned int Client::GetUserID()
 
 const char* Client::GetPublicKey()
 {
-	return userPublic;
+	return (const char*)userPublic;
 }
 
 //Interface with Server!
@@ -173,7 +173,7 @@ int Client::ConnectToServer()
 	memset(&socketInfo, 0, sizeof(socketInfo));						//Clear socketInfo to be filled with client stuff
 	socketInfo.sin_family = AF_INET;								//uses IPv4 addresses
 
-	timeval connectTimeout = {5, 0};
+	timeval connectTimeout = {4, 0};
 	if(!useProxy)
 	{
 		if(IsIP(serverAddr))
@@ -287,7 +287,6 @@ bool Client::DataWaiting()
 	return FD_ISSET(Server, &read_fds);
 }
 
-//NEEDS TESTING
 bool Client::ReceiveData()
 {
 	uint8_t type = buffer[0];
@@ -319,14 +318,14 @@ bool Client::ReceiveData()
 
 		uint32_t senderID = ntohl(*((uint32_t*)&buffer[9]));
 		uint32_t msgLen = ntohl(*((uint32_t*)&buffer[5]));
-		if(recvr(Server, &buffer[13], 16 + msgLen, 0) < 16 + msgLen)
+		if(recvr(Server, &buffer[13], 16 + msgLen, 0) < 16 + (int)msgLen)
 		{
 			errStr = "Disconnected from server";
 			return false;
 		}
 
 		char* msg = new char[msgLen];
-		uint32_t decMsgLen = crypt.Decrypt(&buffer[29], msgLen, &buffer[13], conversations[convIndex].GetSymKey(), msg);
+		int decMsgLen = crypt.Decrypt(&buffer[29], msgLen, (const u8*)&buffer[13], (const u8*)conversations[convIndex].GetSymKey(), msg);
 		if(decMsgLen == -1)
 		{
 			errStr = "Bad decrypt";
@@ -481,8 +480,7 @@ bool Client::ReceiveData()
 			}
 			break;
 		}
-		case 10:
-			contacts = DropIndex(contacts, GetContactIndex(contactID));
+		case 10:			
 			break;
 		case 11:
 			break;
@@ -500,14 +498,14 @@ bool Client::ReceiveData()
 				if(creatorID != userID)
 				{
 					const char* contactPubKey = contacts[GetContactIndex(creatorID)].GetPublicKey();
-					curve25519_donna(key, userPrivate, contactPubKey);
+					curve25519_donna((u8*)key, userPrivate, (const u8*)contactPubKey);
 				}
 				else
 				{
 					memcpy(key, userPrivate, 32);
 				}
 
-				if(crypt.Decrypt(&buffer[24], 48, &buffer[8], key, &buffer[24]) != 32)
+				if(crypt.Decrypt(&buffer[24], 48, (const u8*)&buffer[8], (const u8*)key, &buffer[24]) != 32)
 				{
 					Disconnect();
 					memset(key, 0, 32);
@@ -527,7 +525,7 @@ bool Client::ReceiveData()
 					memcpy(&buffer[76 + (4 * j)], &user, 4);
 				}
 				i += 76 + (users_num * 4);
-				conversations.push_back(Conversation(convID, creatorID, &buffer[24], (const unsigned int*)&buffer[76], users_num));
+				conversations.push_back(Conversation(convID, creatorID, (const unsigned char*)&buffer[24], (const unsigned int*)&buffer[76], users_num));
 			}
 			break;
 		}
@@ -558,7 +556,7 @@ bool Client::ReceiveData()
 						uint32_t msgLen = ntohl(*((uint32_t*)&buffer[5]));
 						recvr(Server, &buffer[13], 16 + msgLen, 0);
 						char* msg = new char[msgLen];
-						uint32_t decMsgLen = crypt.Decrypt(&buffer[29], msgLen, &buffer[13], conversations[convIndex].GetSymKey(), msg);
+						uint32_t decMsgLen = crypt.Decrypt(&buffer[29], msgLen, (const u8*)&buffer[13], (const u8*)conversations[convIndex].GetSymKey(), msg);
 						conversations[convIndex].AddMsg(senderID, msg, decMsgLen);
 						delete[] msg;
 						x += 1 + 4 + 4 + 4 + 16 + msgLen;
@@ -806,7 +804,6 @@ bool Client::AddUserToContacts(uint32_t contactID, const char* nickName, unsigne
 	}
 }
 
-//NEEDS TESTING
 unsigned int Client::CreateConversation(unsigned int contactID)
 {
 	convID = 0;
@@ -820,21 +817,21 @@ unsigned int Client::CreateConversation(unsigned int contactID)
 			uint32_t c_net = htonl(this->contactID);
 			memcpy(&buffer[1], &c_net, 4);
 			char* symKey = new char[32];
-			fprng.GenerateBlocks(symKey, 2);
+			fprng.GenerateBlocks((unsigned char*)symKey, 2);
 
 			char* iv = new char[16];
-			fprng.GenerateBlocks(iv, 1);
+			fprng.GenerateBlocks((unsigned char*)iv, 1);
 			char* myEncSymKey = new char[48];
-			crypt.Encrypt(symKey, 32, iv, userPrivate, myEncSymKey);
+			crypt.Encrypt(symKey, 32, (const u8*)iv, userPrivate, myEncSymKey);
 			memcpy(&buffer[5], iv, 16);
 			memcpy(&buffer[21], myEncSymKey, 48);
 			delete[] myEncSymKey;
 
-			fprng.GenerateBlocks(iv, 1);
+			fprng.GenerateBlocks((unsigned char*)iv, 1);
 			char* sharedKey = new char[32];
-			curve25519_donna(sharedKey, userPrivate, contacts[index].GetPublicKey());				//test_userPublic REFERS TO CONTACT'S PUBLIC KEY!
+			curve25519_donna((u8*)sharedKey, userPrivate, (const u8*)contacts[index].GetPublicKey());				//test_userPublic REFERS TO CONTACT'S PUBLIC KEY!
 			char* conEncSymKey = new char[48];
-			crypt.Encrypt(symKey, 32, iv, sharedKey, conEncSymKey);
+			crypt.Encrypt(symKey, 32, (const u8*)iv, (const u8*)sharedKey, conEncSymKey);
 			memcpy(&buffer[69], iv, 16);
 			memcpy(&buffer[85], conEncSymKey, 48);
 			delete[] iv;
@@ -845,7 +842,7 @@ unsigned int Client::CreateConversation(unsigned int contactID)
 			send(Server, buffer, size, 0);
 			if(ReceiveData())
 			{
-				conversations.push_back(Conversation(convID, userID, symKey, &userID, 1));
+				conversations.push_back(Conversation(convID, userID, (unsigned char*)symKey, &userID, 1));
 				conversations.back().AddUser(contactID);
 				memset(symKey, 0, 32);
 				delete[] symKey;
@@ -870,7 +867,6 @@ unsigned int Client::CreateConversation(unsigned int contactID)
 	}
 }
 
-//NEEDS TESTING
 bool Client::AddToConversation(unsigned int contactID, unsigned int convID)
 {
 	if(signedIn)
@@ -890,11 +886,11 @@ bool Client::AddToConversation(unsigned int contactID, unsigned int convID)
 				memcpy(&buffer[5], &c_net, 4);
 
 				char* iv = new char[16];
-				fprng.GenerateBlocks(iv, 1);
+				fprng.GenerateBlocks((unsigned char*)iv, 1);
 				char* sharedKey = new char[32];
-				curve25519_donna(sharedKey, userPrivate, contacts[contactIndex].GetPublicKey());
+				curve25519_donna((u8*)sharedKey, (const u8*)userPrivate, (const u8*)contacts[contactIndex].GetPublicKey());
 				char* encSymKey = new char[48];
-				crypt.Encrypt(conversations[convIndex].GetSymKey(), 32, iv, sharedKey, encSymKey);
+				crypt.Encrypt(conversations[convIndex].GetSymKey(), 32, (const u8*)iv, (const u8*)sharedKey, encSymKey);
 				memcpy(&buffer[9], iv, 16);
 				memcpy(&buffer[25], encSymKey, 48);
 				delete[] encSymKey;
@@ -954,8 +950,8 @@ bool Client::SendMessage(uint32_t convID, const char* msg, unsigned int msgLen)
 		memcpy(&buffer[1], &c_net, 4);
 		uint32_t l_net = htonl(encMsgLen);
 		memcpy(&buffer[5], &l_net, 4);
-		fprng.GenerateBlocks(&buffer[9], 1);
-		crypt.Encrypt(msg, msgLen, &buffer[9], conversations[convIndex].GetSymKey(), &buffer[25]);
+		fprng.GenerateBlocks((unsigned char*)&buffer[9], 1);
+		crypt.Encrypt(msg, msgLen, (const u8*)&buffer[9], (const u8*)conversations[convIndex].GetSymKey(), &buffer[25]);
 		size = 1 + 4 + 4 + 16 + encMsgLen;
 		send(Server, buffer, size, 0);
 		return ReceiveData();
@@ -992,7 +988,13 @@ bool Client::RemoveContact(uint32_t contactID)
 		memcpy(&buffer[1], &c_net, 4);
 		size = 1 + 4;
 		send(Server, buffer, size, 0);
-		return ReceiveData();
+		if(ReceiveData())
+		{
+			contacts = DropIndex<Contact>(contacts, GetContactIndex(contactID));
+			return true;
+		}
+		else
+			return false;
 	}
 	else
 	{
@@ -1001,7 +1003,6 @@ bool Client::RemoveContact(uint32_t contactID)
 	}
 }
 
-//NEEDS TESTING
 bool Client::LeaveConversation(uint32_t convID)
 {
 	if(signedIn)
@@ -1011,7 +1012,13 @@ bool Client::LeaveConversation(uint32_t convID)
 		memcpy(&buffer[1], &c_net, 4);
 		size = 1 + 4;
 		send(Server, buffer, size, 0);
-		return ReceiveData();
+		if(ReceiveData())
+		{
+			conversations = DropIndex<Conversation>(conversations, GetConvIndex(convID));
+			return true;
+		}
+		else
+			return false;
 	}
 	else
 	{
@@ -1036,7 +1043,6 @@ bool Client::FetchConversations()
 	}
 }
 
-//NEEDS TESTING, WORKS FOR NULL CASE
 bool Client::FetchMessages()
 {
 	if(signedIn)
@@ -1097,28 +1103,28 @@ bool Client::UpdateNickname(uint32_t contactID, const char* nickName, unsigned i
 
 int Client::GetConvIndex(uint32_t convID)
 {
-	int convIndex = 0;
-	for(; convIndex < conversations.size(); convIndex++)
+	int convIndex = -1;
+	for(int i = 0; i < (int)conversations.size(); i++)
 	{
-		if(conversations[convIndex].GetConvID() == convID)
+		if(conversations[i].GetConvID() == convID)
+		{
+			convIndex = i;
 			break;
-
-		if(convIndex == conversations.size() - 1)
-			return -1;
+		}
 	}
 	return convIndex;
 }
 
 int Client::GetContactIndex(uint32_t contactID)
 {
-	int contactIndex = 0;
-	for(; contactIndex < contacts.size(); contactIndex++)
+	int contactIndex = -1;
+	for(int i = 0; i < (int)contacts.size(); i++)
 	{
-		if(contacts[contactIndex].GetContactID() == contactID)
+		if(contacts[i].GetContactID() == contactID)
+		{
+			contactIndex = i;
 			break;
-
-		if(contactIndex == contacts.size() - 1)
-			return -1;
+		}
 	}
 	return contactIndex;
 }
@@ -1133,14 +1139,14 @@ Client::~Client()
 
 //Static Helper Functions
 //---------------------------------------------------------------------------------------------------
-
-std::vector<Contact> DropIndex(std::vector<Contact> v, unsigned int i)
+template <class T>
+std::vector<T> DropIndex(std::vector<T> v, unsigned int i)
 {
 	unsigned int n = v.size();
 	if(i >= n)
 		return v;
 
-	std::vector<Contact> r;
+	std::vector<T> r;
 	for(unsigned int j = 0; j < n; j++)
 	{
 		if(j != i)
@@ -1280,7 +1286,7 @@ int connect_timeout(int fd, const sockaddr* addr, socklen_t len, timeval timeout
 
 		if(FD_ISSET(fd, &readset) || FD_ISSET(fd, &writeset))
 		{
-			if(getsockopt(fd, SOL_SOCKET, SO_ERROR, (const void*)&error, &errLen) < 0)
+			if(getsockopt(fd, SOL_SOCKET, SO_ERROR, (void*)&error, &errLen) < 0)
 				return -5;					//There was an error
 		}
 		else
