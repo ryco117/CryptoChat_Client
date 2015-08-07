@@ -10,6 +10,7 @@ MainWindow::MainWindow(QWidget* parent) :QMainWindow(parent), ui(new Ui::MainWin
 	connect(&timer, SIGNAL(timeout()), this, SLOT(Update()));
 
 	CreateActions();
+	ui->actionServer_Public_key->setVisible(false);
 	ui->actionLogout->setVisible(false);
 	ui->actionGet_Public_Key->setVisible(false);
 	ui->actionSync->setVisible(false);
@@ -25,6 +26,7 @@ MainWindow::MainWindow(QWidget* parent) :QMainWindow(parent), ui(new Ui::MainWin
 	setTabOrder(ui->loginButton, ui->createUserButton);
 
 	//Set Up Right Click Menus
+	convsContextMenu.push_back(ui->actionGetMembers);
 	convsContextMenu.push_back(ui->actionLeaveConv);
 	openConvIndex = -1;
 	selectedConvIndex = -1;
@@ -34,6 +36,7 @@ MainWindow::MainWindow(QWidget* parent) :QMainWindow(parent), ui(new Ui::MainWin
 
 	contactsContextMenu.push_back(ui->actionContactPublicKey);
 	contactsContextMenu.push_back(ui->actionUpdateNickname);
+	contactsContextMenu.push_back(ui->actionSetContactPublicKey);
 	contactsContextMenu.push_back(ui->actionRemoveContact);
 	contactIndex = -1;
 	ui->contactListWidget->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -60,6 +63,7 @@ void MainWindow::CreateActions()
 	connect(ui->actionSync, SIGNAL(triggered()), this, SLOT(Sync()));
 
 	connect(ui->actionNetworking, SIGNAL(triggered()), this, SLOT(NetworkingAction()));
+	connect(ui->actionServer_Public_key, SIGNAL(triggered()), this, SLOT(GetServerPublicKeyAction()));
 	connect(ui->actionClient, SIGNAL(triggered()), this, SLOT(ClientOptionsAction()));
 
     connect(ui->actionHelp, SIGNAL(triggered()), this, SLOT(Help()));
@@ -70,11 +74,13 @@ void MainWindow::CreateActions()
 
 	//Convs Context Menu
 	connect(ui->actionAddToConv, SIGNAL(triggered()), this, SLOT(AddContactToConv()));
+	connect(ui->actionGetMembers, SIGNAL(triggered()), this, SLOT(GetMembers()));
 	connect(ui->actionLeaveConv, SIGNAL(triggered()), this, SLOT(LeaveConv()));
 
 	//Contacts Context Menu
 	connect(ui->actionContactPublicKey, SIGNAL(triggered()), this, SLOT(GetContactPublicKey()));
 	connect(ui->actionUpdateNickname, SIGNAL(triggered()), this, SLOT(UpdateNickname()));
+	connect(ui->actionSetContactPublicKey, SIGNAL(triggered()), this, SLOT(SetContactPublicKey()));
 	connect(ui->actionRemoveContact, SIGNAL(triggered()), this, SLOT(RemoveContact()));
 }
 
@@ -139,7 +145,6 @@ void MainWindow::RefreshMessages()
 	std::vector<Msg> msgs = client->conversations[openConvIndex].GetMsgs();
 	for(unsigned int i = 0; i < msgs.size(); i++)
 	{
-		//new QListWidgetItem(msgs[i].msg, ui->messagesListWidget);
 		int newRow = ui->messagesTableWidget->rowCount();
 		ui->messagesTableWidget->insertRow(newRow);
 
@@ -216,7 +221,12 @@ void MainWindow::Update()
 		if(!client->ReceiveData())
 			DisplayClientError();
 
-		RefreshMessages();
+		if(client->UpdateContacts())
+			RefreshContacts();
+		if(client->UpdateConvs())
+			RefreshConvs();
+		if(client->UpdateMessages())
+			RefreshMessages();
 	}
 	timer.start();
 }
@@ -288,6 +298,8 @@ void MainWindow::userConvListMenuRequested(const QPoint& pos)
 		convsContextMenu.clear();
 		if(client->conversations[t.row()].GetCreatorID() == client->GetUserID())
 			convsContextMenu.push_front(ui->actionAddToConv);
+
+		convsContextMenu.push_back(ui->actionGetMembers);
 		convsContextMenu.push_back(ui->actionLeaveConv);
 
 		ui->conversationListWidget->item(t.row())->setSelected(true);	//even a right click will select the item
@@ -304,6 +316,7 @@ void MainWindow::userContactListMenuRequested(const QPoint& pos)
 	{
 		ui->contactListWidget->item(t.row())->setSelected(true);	//even a right click will select the item
 		contactIndex = t.row();
+		ui->actionSetContactPublicKey->setEnabled(ui->setContactPubCB->isChecked());
 		QMenu::exec(contactsContextMenu, globalPos);
 	}
 }
@@ -338,6 +351,50 @@ void MainWindow::UpdateNickname()
 			DisplayClientError();
 
 		RefreshContacts();
+	}
+	contactIndex = -1;
+}
+
+void MainWindow::SetContactPublicKey()
+{
+	if(contactIndex == -1)
+		return;
+
+	if(DisplayMsg("Set Public Key", "Are you sure you want to manually set this public key?", QMessageBox::Warning, QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes)
+	{
+		char pub64[45];
+		memset(pub64, 0, 45);
+		GetPasswordWidget w(pub64, this);
+		w.setWindowTitle("Set Public Key");
+		w.SetLabel("Public key in base64");
+		w.SetEcho(QLineEdit::Normal);
+		w.SetMaxLength(44);
+		w.SetPlaceHolder("example: vPt40C2e2z05eZsU5Egp6pj+44EQrAKlLD0SdwqsuXM=");
+		if(w.exec() == QDialog::Accepted)
+		{
+			if(strlen(pub64) == 44)
+			{
+				unsigned int len = 44;
+				try
+				{
+					char* pubKey = Base64Decode(pub64, len);
+					if(len == 32)
+					{
+						client->contacts[contactIndex].SetPublicKey(pubKey);
+						RefreshContacts();
+						delete[] pubKey;
+					}
+					else
+						DisplayMsg("Error", "Public key was not formatted/spelled correctly", QMessageBox::Critical, QMessageBox::Ok);
+				}
+				catch (int e)
+				{
+					DisplayMsg("Error", "Public key was not formatted/spelled correctly", QMessageBox::Critical, QMessageBox::Ok);
+				}
+			}
+			else
+				DisplayMsg("Error", "Public key was not correct length.", QMessageBox::Critical, QMessageBox::Ok);
+		}
 	}
 	contactIndex = -1;
 }
@@ -385,6 +442,25 @@ void MainWindow::AddContactToConv()
 	}
 	delete[] idStr;
 	selectedConvIndex = -1;
+}
+
+void MainWindow::GetMembers()
+{
+	if(selectedConvIndex == -1)
+		return;
+
+/*	QListWidget q(this->parent());
+	std::vector<uint32_t> members = client->conversations[selectedConvIndex].GetUsers();
+	for(unsigned int i = 0; i < members.size(); i++)
+	{
+		if(members[i] != client->GetUserID())
+		{
+			unsigned int index = client->GetContactIndex(members[i]);
+			QListWidgetItem* item = new QListWidgetItem((client->contacts[index].HasNickname())?client->contacts[index].GetNickname():QString::number(members[i]), &q);
+			item->setIcon(QIcon(":/new/img/contact.png"));
+		}
+	}
+	*/
 }
 
 void MainWindow::LeaveConv()
@@ -443,6 +519,7 @@ void MainWindow::LogoutAction()
 {
 	client->Disconnect();
 	timer.stop();
+	ui->actionServer_Public_key->setVisible(false);
 	ui->actionLogout->setVisible(false);
 	ui->actionGet_Public_Key->setVisible(false);
 	ui->actionSync->setVisible(false);
@@ -544,6 +621,13 @@ void MainWindow::NetworkingAction()
 	View(ui->networkingWidget);
 }
 
+void MainWindow::GetServerPublicKeyAction()
+{
+	char* pubKey = Base64Encode(client->GetServPublic(), 32);
+	DisplayMsg("Server's Public Key", pubKey, QMessageBox::Information, QMessageBox::Ok);
+	delete[] pubKey;
+}
+
 void MainWindow::ClientOptionsAction()
 {
 	View(ui->clientOptionsWidget);
@@ -565,7 +649,11 @@ void MainWindow::Help()
 
 void MainWindow::About()
 {
-	DisplayMsg("About", "TESTING 123!", QMessageBox::Information, QMessageBox::Ok);
+	DisplayMsg("About", \
+			   "CryptoChat Client is a chatting application that (when coupled with<br/>\
+			   CryptoChat Server) is meant to deliver the best available security<br/>\
+			without compromising convenience, with the assurances of completely<br/>\
+			open source software!", QMessageBox::Information, QMessageBox::Ok);
 }
 
 void MainWindow::Donate()
@@ -700,14 +788,30 @@ void MainWindow::on_serverAddrLine_returnPressed()
 {
 	if(client->ServerConnected())
 	{
+		ui->actionServer_Public_key->setVisible(false);
 		if(client->SignedIn())
+		{
 			timer.stop();
+			ui->actionLogout->setVisible(false);
+			ui->actionGet_Public_Key->setVisible(false);
+			ui->actionSync->setVisible(false);
+			this->setWindowTitle("CryptoChat Client");
+
+			ui->contactListWidget->clear();
+			client->contacts.clear();
+			ui->conversationListWidget->clear();
+			ui->messagesTableWidget->setRowCount(0);
+			client->conversations.clear();
+		}
 		client->Disconnect();
 	}
 
 	ConnectToServer();
 	if(client->ServerConnected())
+	{
+		ui->actionServer_Public_key->setVisible(true);
 		LoginAction();
+	}
 }
 
 void MainWindow::on_proxyCB_toggled(bool checked)
@@ -740,6 +844,17 @@ void MainWindow::on_messageLineEdit_returnPressed()
 
 		RefreshMessages();
 	}
+}
+
+void MainWindow::on_enableAdvancedCB_toggled(bool checked)
+{
+	ui->advancedGroupBox->setEnabled(checked);
+}
+
+void MainWindow::on_threadsSlider_valueChanged()
+{
+	ui->threadsLabel->setText(tr("Threads to use when creating account: ") + QString::number(ui->threadsSlider->value()));
+	client->SetThreadNum(ui->threadsSlider->value());
 }
 
 MainWindow::~MainWindow()

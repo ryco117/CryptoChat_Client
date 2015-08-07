@@ -67,12 +67,14 @@ private slots:
 
 	//Contact Right Click Menu
 	void CreateConv();
-	void UpdateNickname();
 	void GetContactPublicKey();
+	void UpdateNickname();
+	void SetContactPublicKey();
 	void RemoveContact();
 
 	//Conversation Right Click Menu
 	void AddContactToConv();
+	void GetMembers();
 	void LeaveConv();
 
 	//Menu Bar Actions
@@ -85,6 +87,7 @@ private slots:
 	void Add_ContactAction();
 	void ConversationsAction();
 	void NetworkingAction();
+	void GetServerPublicKeyAction();
 	void ClientOptionsAction();
 	void Help();
 	void About();
@@ -101,6 +104,8 @@ private slots:
 	void on_proxyAddrLine_returnPressed();
 	void on_proxyConnectButton_clicked();
 	void on_messageLineEdit_returnPressed();
+	void on_enableAdvancedCB_toggled(bool checked);
+	void on_threadsSlider_valueChanged();
 };
 
 #endif // MAINWINDOW_H

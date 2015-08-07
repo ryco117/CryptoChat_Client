@@ -57,12 +57,16 @@ private:
 	uint32_t rand;
 	uint32_t convID;
 	uint32_t contactID;
+	unsigned char threadNum;
 
 	//Networking
 	int Server;														//Socket for connecting to server
 	sockaddr_in socketInfo;
 	bool serverConnected;
 	bool signedIn;
+	bool updateMessages;
+	bool updateConvs;
+	bool updateContacts;
 
 	//Vars that most functions will use
 	int err;
@@ -83,14 +87,19 @@ public:
 
 	Client();
 	~Client();
-	std::string GetError();
-	bool SeedSuccessfull();
-	bool ServerConnected();
-	bool SignedIn();
+	std::string GetError() const;
+	bool SeedSuccessfull() const;
+	bool ServerConnected() const;
+	bool SignedIn() const;
+	bool UpdateMessages();
+	bool UpdateConvs();
+	bool UpdateContacts();
 	bool SetServer(std::string server);
 	bool SetProxy(std::string proxy);
-	unsigned int GetUserID();
-	const char* GetPublicKey();
+	unsigned int GetUserID() const;
+	const char* GetPublicKey() const;
+	const char* GetServPublic() const;
+	void SetThreadNum(unsigned char t);
 
 	//Interface With Server
 	int ConnectToServer();

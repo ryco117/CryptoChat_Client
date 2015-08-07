@@ -6,6 +6,18 @@ u_long Resolve(string& addr);
 int recvr(int socket, char* buffer, int length, int flags);
 int connect_timeout(int fd, const sockaddr* addr, socklen_t len, timeval timeout);
 
+struct HashInfo
+{
+	bool* found;
+	char* result;
+	const char* match;
+	const char* salt;
+	unsigned int n;
+	long long start;
+	unsigned int inc;
+};
+void* FindHash(void* v);
+
 Client::Client()
 {
 	memset(zeroArray, 0, 48);
@@ -49,6 +61,7 @@ Client::Client()
 	memset(userPasswordKey, 0, 32);
 	memset(userIV, 0, 16);
 	memset(userSalt, 0, 16);
+	threadNum = 2;
 
 	rand = 0;
 	Server = 0;
@@ -90,24 +103,45 @@ bool Client::SeedPRNG(FortunaPRNG& fprng)
 	return true;
 }
 
-std::string Client::GetError()
+std::string Client::GetError() const
 {
 	return errStr;
 }
 
-bool Client::SeedSuccessfull()
+bool Client::SeedSuccessfull() const
 {
 	return seedSuccessfull;
 }
 
-bool Client::ServerConnected()
+bool Client::ServerConnected() const
 {
 	return serverConnected;
 }
 
-bool Client::SignedIn()
+bool Client::SignedIn() const
 {
 	return signedIn;
+}
+
+bool Client::UpdateMessages()
+{
+	bool x = updateMessages;
+	updateMessages = false;
+	return x;
+}
+
+bool Client::UpdateConvs()
+{
+	bool x = updateConvs;
+	updateConvs = false;
+	return x;
+}
+
+bool Client::UpdateContacts()
+{
+	bool x = updateContacts;
+	updateContacts = false;
+	return x;
 }
 
 bool Client::SetServer(std::string server)
@@ -154,14 +188,26 @@ bool Client::SetProxy(std::string proxy)
 	return true;
 }
 
-unsigned int Client::GetUserID()
+unsigned int Client::GetUserID() const
 {
 	return userID;
 }
 
-const char* Client::GetPublicKey()
+const char* Client::GetPublicKey() const
 {
 	return (const char*)userPublic;
+}
+
+const char* Client::GetServPublic() const
+{
+	return (const char*)servPublic;
+}
+
+void Client::SetThreadNum(unsigned char t)
+{
+	threadNum = t;
+	if(threadNum < 1)
+		threadNum = 1;
 }
 
 //Interface with Server!
@@ -310,17 +356,17 @@ bool Client::ReceiveData()
 		recvr(Server, &buffer[1], 12, 0);
 		uint32_t convID = ntohl(*((uint32_t*)&buffer[1]));
 		int convIndex = GetConvIndex(convID);
-		if(convIndex == -1)
-		{
-			errStr = "The received message belongs to a conversation that doesn't exist locally";
-			return false;
-		}
-
 		uint32_t senderID = ntohl(*((uint32_t*)&buffer[9]));
 		uint32_t msgLen = ntohl(*((uint32_t*)&buffer[5]));
 		if(recvr(Server, &buffer[13], 16 + msgLen, 0) < 16 + (int)msgLen)
 		{
 			errStr = "Disconnected from server";
+			return false;
+		}
+
+		if(convIndex == -1)
+		{
+			errStr = "The received message belongs to a conversation that doesn't exist locally";
 			return false;
 		}
 
@@ -333,6 +379,7 @@ bool Client::ReceiveData()
 		}
 
 		conversations[convIndex].AddMsg(senderID, msg, decMsgLen);
+		updateMessages = true;
 		delete[] msg;
 
 		//Send "case 13" saying we read this message successfully, and don't need to be pushed it again.
@@ -344,6 +391,44 @@ bool Client::ReceiveData()
 	}
 	else if(buffer[0] == '\x0D')
 	{
+		return true;
+	}
+	else if(buffer[0] == '\x06' || buffer[0] == '\x07')
+	{
+		recvr(Server, buffer, 76, 0);
+		convID = ntohl(*((uint32_t*)buffer));
+		uint32_t creatorID = ntohl(*((uint32_t*)&buffer[4]));
+		char* key = new char[32];
+		if(creatorID != userID)
+		{
+			const char* contactPubKey = contacts[GetContactIndex(creatorID)].GetPublicKey();
+			curve25519_donna((u8*)key, userPrivate, (const u8*)contactPubKey);
+		}
+		else
+		{
+			memcpy(key, userPrivate, 32);
+		}
+
+		if(crypt.Decrypt(&buffer[24], 48, (const u8*)&buffer[8], (const u8*)key, &buffer[24]) != 32)
+		{
+			Disconnect();
+			memset(key, 0, 32);
+			delete[] key;
+			errStr = "Bad decrypt, aborting connection";
+			return false;
+		}
+		memset(key, 0, 32);
+		delete[] key;
+
+		uint32_t users_num = ntohl(*((uint32_t*)&buffer[72]));
+		recvr(Server, &buffer[76], users_num * 4, 0);
+		for(unsigned int j = 0; j < users_num; j++)
+		{
+			uint32_t user = ntohl(*((uint32_t*)&buffer[76 + (4 * j)]));
+			memcpy(&buffer[76 + (4 * j)], &user, 4);
+		}
+		conversations.push_back(Conversation(convID, creatorID, (const unsigned char*)&buffer[24], (const unsigned int*)&buffer[76], users_num));
+		updateConvs = true;
 		return true;
 	}
 	else
@@ -578,9 +663,11 @@ bool Client::ReceiveData()
 			success = false;
 			break;
 		}
-		buffer[0] = '\x80';		//Ensures that an attacker can't overwrite buffer[0] to fake a user request, followed by a malicious response
+		buffer[0] = '\xFF';		//Ensures that an attacker can't overwrite buffer[0] to fake a user request, followed by a malicious response
 		return success;
 	}
+	errStr = "If you are reading this... something is terribly wrong...";
+	return false;
 }
 
 void Client::Disconnect()
@@ -603,6 +690,38 @@ unsigned int Client::CreateUser(const char* password)
 	userID = 0;
 	buffer[0] = 1;
 
+	//Start by passing hash test!
+	send(Server, buffer, 1, 0);				//Let server know what we want to do
+	if(recvr(Server, &buffer[1], 33, 0) != 33)
+	{
+		errStr = "Lost connection with server";
+		return 0;
+	}
+
+	unsigned int len = ((unsigned char)buffer[1] / 8);
+	bool foundIt = false;
+
+	//Multiple thread support!!
+	HashInfo* his = new HashInfo[threadNum];
+	for(unsigned int i = 0; i < threadNum; i++)
+	{
+		his[i].found = &foundIt;
+		his[i].inc = threadNum;
+		his[i].match = &buffer[2];
+		his[i].n = len;
+		his[i].result = &buffer[1];
+		his[i].salt = &buffer[18];
+		his[i].start = (long long)i;
+	}
+
+	pthread_t* threads = new pthread_t[threadNum-1];
+	for(unsigned int i = 0; i < threadNum-1; i++)
+		pthread_create(&threads[i], 0, FindHash, &his[i]);
+
+	FindHash(&his[threadNum-1]);
+	for(unsigned int i = 0; i < threadNum-1; i++)
+		pthread_join(threads[i], 0);
+
 	//Generate Values To Store
 	fprng.GenerateBlocks(userPrivate, 2);						//Create random private key
 	fprng.GenerateBlocks(userIV, 1);							//		 random IV
@@ -614,11 +733,11 @@ unsigned int Client::CreateUser(const char* password)
 	crypt.Encrypt((const char*)userPrivate, 32, userIV, userPasswordKey, (char*)encPrivate);
 
 	//Copy values to buffer and send off!!
-	memcpy(&buffer[1], userPublic, 32);
-	memcpy(&buffer[33], encPrivate, 48);
-	memcpy(&buffer[81], userIV, 16);
-	memcpy(&buffer[97], userSalt, 16);
-	size = 1 + 32 + 48 + 16 + 16;
+	memcpy(&buffer[17], userPublic, 32);
+	memcpy(&buffer[49], encPrivate, 48);
+	memcpy(&buffer[97], userIV, 16);
+	memcpy(&buffer[113], userSalt, 16);
+	size = 1 + 16 + 32 + 48 + 16 + 16;
 	send(Server, buffer, size, 0);
 	if(ReceiveData())
 		return userID;
@@ -935,7 +1054,6 @@ bool Client::SendMessage(uint32_t convID, const char* msg, unsigned int msgLen)
 			errStr = "Server will not accept a message this long :/";
 			return false;
 		}
-
 		this->convID = convID;
 		int convIndex = GetConvIndex(convID);
 		if(convIndex == -1)
@@ -1308,4 +1426,24 @@ int connect_timeout(int fd, const sockaddr* addr, socklen_t len, timeval timeout
 	#endif
 
 	return 0;								//SUCCESS!!
+}
+
+void* FindHash(void* v)
+{
+	HashInfo* hi = (HashInfo*)v;
+	char* attempt = new char[16];
+	char* hashOut = new char[16];
+	memcpy(attempt, &(hi->start), sizeof(long long));
+	while(*hi->found == false)
+	{
+		*((long long*)attempt) += hi->inc;
+		libscrypt_scrypt(attempt, 16, hi->salt, 16, 128, 3, 1, hashOut, 16);
+		if(memcmp(&hashOut[0], hi->match, hi->n) == 0)
+		{
+			*hi->found = true;
+			memcpy(hi->result, attempt, 16);
+		}
+	}
+	delete[] hashOut;
+	delete[] attempt;
 }
