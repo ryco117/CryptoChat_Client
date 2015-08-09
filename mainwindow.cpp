@@ -174,6 +174,7 @@ void MainWindow::RefreshMessages()
 		item->setFlags(item->flags() ^ Qt::ItemIsEditable);
 		ui->messagesTableWidget->setItem(newRow, 1, item);
 	}
+    ui->messagesTableWidget->resizeColumnToContents(1);
 }
 
 void MainWindow::View(QWidget* w)
@@ -226,7 +227,14 @@ void MainWindow::Update()
 		if(client->UpdateConvs())
 			RefreshConvs();
 		if(client->UpdateMessages())
+        {
+            if(this->isMinimized())
+            {
+                //Play a nicer sound later (QSound?)
+                QApplication::beep();
+            }
 			RefreshMessages();
+        }
 	}
 	timer.start();
 }
@@ -842,6 +850,7 @@ void MainWindow::on_messageLineEdit_returnPressed()
 		else
 			DisplayClientError();
 
+        ui->messagesTableWidget->resizeColumnToContents(1);
 		RefreshMessages();
 	}
 }

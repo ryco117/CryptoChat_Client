@@ -8,6 +8,7 @@
 #include <fstream>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 using namespace std;
 
@@ -349,7 +350,7 @@ namespace
 class AES
 {
 public:
-	void Encrypt(const char* Msg, unsigned int MsgLen, const uint8_t* IV, const uint8_t* Key, char* CipherText);
+    void Encrypt(const char* Msg, unsigned int MsgLen, const uint8_t* IV, const uint8_t* Key, char* CipherText);
 	int Decrypt(const char* Cipher, unsigned int CipherLen, const uint8_t* IV, const uint8_t* Key, char* PlainText);
 };
 }

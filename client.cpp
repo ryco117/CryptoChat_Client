@@ -715,11 +715,11 @@ unsigned int Client::CreateUser(const char* password)
 	}
 
 	pthread_t* threads = new pthread_t[threadNum-1];
-	for(unsigned int i = 0; i < threadNum-1; i++)
+    for(unsigned int i = 0; i < (unsigned int)(threadNum-1); i++)
 		pthread_create(&threads[i], 0, FindHash, &his[i]);
 
 	FindHash(&his[threadNum-1]);
-	for(unsigned int i = 0; i < threadNum-1; i++)
+    for(unsigned int i = 0; i < (unsigned int)(threadNum-1); i++)
 		pthread_join(threads[i], 0);
 
 	//Generate Values To Store

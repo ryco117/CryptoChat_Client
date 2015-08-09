@@ -4,7 +4,9 @@
 #define SCRYPT_WORK_VALUE 131072
 
 #ifdef WINDOWS
-	#define _WIN32_WINNT  0x0500
+    #ifndef _WIN32_WINNT
+        #define _WIN32_WINNT  0x0500
+    #endif
 	#pragma comment(lib, "Ws2_32.lib")
 
 	#include <winsock2.h>

@@ -11,6 +11,8 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 TARGET = CryptoChat_Client
 TEMPLATE = app
 win32: DEFINES += WINDOWS
+CONFIG += RELEASE
+CONFIG -= DEBUG
 
 SOURCES += main.cpp\
     mainwindow.cpp \
@@ -49,7 +51,6 @@ linux:android: INCLUDEPATH += /usr/android-toolchain-21/include
 linux:android: DEPENDPATH += /usr/android-toolchain-21/include
 
 QMAKE_CFLAGS_RELEASE -= -O2
-QMAKE_CFLAGS_RELEASE += -O0
 
 QMAKE_CXXFLAGS += -static
 QMAKE_CXXFLAGS += -Wno-strict-aliasing
@@ -87,16 +88,6 @@ MOBILITY =
 
 RESOURCES += \
     resource.qrc
-
-#ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android
-
-#OTHER_FILES += \
-#<<<<<<< HEAD
-#    android/AndroidManifest.xml \
-#    crypto/AES.asm
-#=======
-#    android/AndroidManifest.xml
-#>>>>>>> a5b851015b90aeb046f9ab54341041d183ea1469
 
 OTHER_FILES += \
     LICENSE
