@@ -77,6 +77,19 @@ public:
 		return msgs;
 	}
 
+    const Msg* GetMsg(unsigned int n) const
+    {
+        if(n < msgs.size())
+            return &msgs[n];
+        else
+            return 0;
+    }
+
+    unsigned int GetNumberMsgs() const
+    {
+        return msgs.size();
+    }
+
 	void AddUser(unsigned int userID)
 	{
 		users.push_back(userID);

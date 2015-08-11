@@ -8,6 +8,10 @@ GetPasswordWidget::GetPasswordWidget(char* passwd, QWidget *parent) :
 	Passwd = passwd;
 	ui->setupUi(this);
 	ui->PasswordField->setFocus();
+
+    Qt::WindowFlags flags = this->windowFlags();
+    if(flags.testFlag(Qt::WindowContextHelpButtonHint))
+        this->setWindowFlags(flags & ~Qt::WindowContextHelpButtonHint);
 }
 
 void GetPasswordWidget::SetLabel(QString str)

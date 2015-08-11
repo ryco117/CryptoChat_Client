@@ -7,6 +7,8 @@ MainWindow::MainWindow(QWidget* parent) :QMainWindow(parent), ui(new Ui::MainWin
 	client = new Client();
 	localChanges = false;
 	timer.setInterval(200);												//Send an event every 200 ms after login
+    outgoingColor = QColor(150, 255, 200, 110);
+    incomingColor = QColor(150, 200, 255, 110);
 	connect(&timer, SIGNAL(timeout()), this, SLOT(Update()));
 
 	CreateActions();
@@ -14,6 +16,8 @@ MainWindow::MainWindow(QWidget* parent) :QMainWindow(parent), ui(new Ui::MainWin
 	ui->actionLogout->setVisible(false);
 	ui->actionGet_Public_Key->setVisible(false);
 	ui->actionSync->setVisible(false);
+    ui->actionUpdate_Password->setVisible(false);
+    ui->actionUpdate_Password->setEnabled(false);
 
 	View(ui->networkingWidget);
 
@@ -34,14 +38,15 @@ MainWindow::MainWindow(QWidget* parent) :QMainWindow(parent), ui(new Ui::MainWin
 	connect(ui->conversationListWidget, SIGNAL(customContextMenuRequested(const QPoint&)), this, SLOT(userConvListMenuRequested(QPoint)));
 	connect(ui->conversationListWidget, SIGNAL(itemDoubleClicked(QListWidgetItem*)), this, SLOT(OpenConv(QListWidgetItem*)));
 
-	contactsContextMenu.push_back(ui->actionContactPublicKey);
-	contactsContextMenu.push_back(ui->actionUpdateNickname);
-	contactsContextMenu.push_back(ui->actionSetContactPublicKey);
-	contactsContextMenu.push_back(ui->actionRemoveContact);
-	contactIndex = -1;
-	ui->contactListWidget->setContextMenuPolicy(Qt::CustomContextMenu);
-	connect(ui->contactListWidget, SIGNAL(customContextMenuRequested(const QPoint&)), this, SLOT(userContactListMenuRequested(const QPoint&)));
-	connect(ui->contactListWidget, SIGNAL(itemDoubleClicked(QListWidgetItem*)), this, SLOT(OpenConvWithContact(QListWidgetItem*)));
+    contactsContextMenu.push_back(ui->actionContactPublicKey);
+    contactsContextMenu.push_back(ui->actionUpdateNickname);
+    contactsContextMenu.push_back(ui->actionCreateConvWithContact);
+    contactsContextMenu.push_back(ui->actionSetContactPublicKey);
+    contactsContextMenu.push_back(ui->actionRemoveContact);
+    contactIndex = -1;
+    ui->contactListWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->contactListWidget, SIGNAL(customContextMenuRequested(const QPoint&)), this, SLOT(userContactListMenuRequested(const QPoint&)));
+    connect(ui->contactListWidget, SIGNAL(itemDoubleClicked(QListWidgetItem*)), this, SLOT(OpenConvWithContact(QListWidgetItem*)));
 
 	if(client->ServerConnected())
 		LoginAction();
@@ -54,13 +59,14 @@ void MainWindow::CreateActions()
 	connect(ui->actionCreate_Account, SIGNAL(triggered()), this, SLOT(Create_AccountAction()));
 	connect(ui->actionLogout, SIGNAL(triggered()), this, SLOT(LogoutAction()));
 	connect(ui->actionGet_Public_Key, SIGNAL(triggered()), this, SLOT(GetPublicKeyAction()));
+    connect(ui->actionSync, SIGNAL(triggered()), this, SLOT(Sync()));
+    connect(ui->actionUpdate_Password, SIGNAL(triggered()), this, SLOT(UpdatePasswordAction()));
 
 	connect(ui->actionView_Contacts, SIGNAL(triggered()), this, SLOT(View_ContactsAction()));
 	connect(ui->actionAdd_Contact, SIGNAL(triggered()), this, SLOT(Add_ContactAction()));
 	connect(ui->addContactButton, SIGNAL(clicked()), this, SLOT(Add_ContactAction()));
 
-	connect(ui->actionConversations, SIGNAL(triggered()), this, SLOT(ConversationsAction()));
-	connect(ui->actionSync, SIGNAL(triggered()), this, SLOT(Sync()));
+    connect(ui->actionConversations, SIGNAL(triggered()), this, SLOT(ConversationsAction()));
 
 	connect(ui->actionNetworking, SIGNAL(triggered()), this, SLOT(NetworkingAction()));
 	connect(ui->actionServer_Public_key, SIGNAL(triggered()), this, SLOT(GetServerPublicKeyAction()));
@@ -68,18 +74,20 @@ void MainWindow::CreateActions()
 
     connect(ui->actionHelp, SIGNAL(triggered()), this, SLOT(Help()));
     connect(ui->actionAbout, SIGNAL(triggered()), this, SLOT(About()));
+    connect(ui->actionDonate, SIGNAL(triggered()), this, SLOT(Donate()));
 	connect(ui->actionLicense, SIGNAL(triggered()), this, SLOT(License()));
 	connect(ui->actionCurve_License, SIGNAL(triggered()), this, SLOT(CurveLicense()));
-	connect(ui->actionDonate, SIGNAL(triggered()), this, SLOT(Donate()));
+    connect(ui->actionQt_License, SIGNAL(triggered()), this, SLOT(QtLicense()));
 
 	//Convs Context Menu
 	connect(ui->actionAddToConv, SIGNAL(triggered()), this, SLOT(AddContactToConv()));
 	connect(ui->actionGetMembers, SIGNAL(triggered()), this, SLOT(GetMembers()));
 	connect(ui->actionLeaveConv, SIGNAL(triggered()), this, SLOT(LeaveConv()));
 
-	//Contacts Context Menu
+    //Contacts Context Menu
 	connect(ui->actionContactPublicKey, SIGNAL(triggered()), this, SLOT(GetContactPublicKey()));
 	connect(ui->actionUpdateNickname, SIGNAL(triggered()), this, SLOT(UpdateNickname()));
+    connect(ui->actionCreateConvWithContact, SIGNAL(triggered()), this, SLOT(CreateConv()));
 	connect(ui->actionSetContactPublicKey, SIGNAL(triggered()), this, SLOT(SetContactPublicKey()));
 	connect(ui->actionRemoveContact, SIGNAL(triggered()), this, SLOT(RemoveContact()));
 }
@@ -89,14 +97,14 @@ bool MainWindow::ConnectToServer()
 	client->useProxy = ui->proxyCB->isChecked();
 	if(!client->SetServer(ui->serverAddrLine->text().toStdString()))
 	{
-		DisplayMsg("Error", "Incorrectly formatted server address", QMessageBox::Critical, QMessageBox::Ok);
+        DisplayMsg("Error", "Incorrectly formatted server address", QMessageBox::Critical);
 		return false;
 	}
 	if(client->useProxy)
 	{
 		if(!client->SetProxy(ui->proxyAddrLine->text().toStdString()))
 		{
-			DisplayMsg("Error", "Incorrectly formatted proxy address", QMessageBox::Critical, QMessageBox::Ok);
+            DisplayMsg("Error", "Incorrectly formatted proxy address", QMessageBox::Critical);
 			return false;
 		}
 	}
@@ -106,10 +114,11 @@ bool MainWindow::ConnectToServer()
 	{
 		client->Disconnect();
 		DisplayMsg("Couldn't Connect To Server", tr("Could not connect to server at ") + tr(client->serverAddr.c_str())+ tr("<br/>Error: ") + QString::number(err) + tr(client->GetError().c_str()),\
-				   QMessageBox::Critical, QMessageBox::Ok);
+                   QMessageBox::Critical);
 		return false;
 	}
 
+    ui->actionServer_Public_key->setVisible(true);
 	return true;
 }
 
@@ -145,34 +154,7 @@ void MainWindow::RefreshMessages()
 	std::vector<Msg> msgs = client->conversations[openConvIndex].GetMsgs();
 	for(unsigned int i = 0; i < msgs.size(); i++)
 	{
-		int newRow = ui->messagesTableWidget->rowCount();
-		ui->messagesTableWidget->insertRow(newRow);
-
-		QString str;
-		QColor c;
-		if(msgs[i].senderID != client->GetUserID())
-		{
-			int index = client->GetContactIndex(msgs[i].senderID);
-			if(index == -1)
-				str = QString::number(client->contacts[index].GetContactID());
-			else
-				str = (client->contacts[index].HasNickname())?client->contacts[index].GetNickname():QString::number(client->contacts[index].GetContactID());
-			c = QColor(150, 200, 255, 110);
-		}
-		else
-		{
-			str = "Me";
-			c = QColor(150, 255, 200, 110);
-		}
-
-		QTableWidgetItem* item = new QTableWidgetItem(str);
-		item->setBackgroundColor(c);
-		item->setFlags(item->flags() ^ Qt::ItemIsEditable);
-		ui->messagesTableWidget->setItem(newRow, 0, item);
-		item = new QTableWidgetItem(msgs[i].msg);
-		item->setBackgroundColor(c);
-		item->setFlags(item->flags() ^ Qt::ItemIsEditable);
-		ui->messagesTableWidget->setItem(newRow, 1, item);
+        AppendMsg(&msgs[i]);
 	}
     ui->messagesTableWidget->resizeColumnToContents(1);
 }
@@ -206,7 +188,42 @@ int MainWindow::DisplayMsg(QString title, QString msg, QMessageBox::Icon level, 
 
 void MainWindow::DisplayClientError()
 {
-	DisplayMsg("Error", client->GetError().c_str(), QMessageBox::Critical, QMessageBox::Ok);
+    DisplayMsg("Error", client->GetError().c_str(), QMessageBox::Critical);
+}
+
+void MainWindow::AppendMsg(const Msg* msg)
+{
+    if(openConvIndex == -1)
+        return;
+
+    int newRow = ui->messagesTableWidget->rowCount();
+    ui->messagesTableWidget->insertRow(newRow);
+
+    QString str;
+    QColor c;
+    if(msg->senderID != client->GetUserID())
+    {
+        int index = client->GetContactIndex(msg->senderID);
+        if(index == -1)
+            str = QString::number(client->contacts[index].GetContactID());
+        else
+            str = (client->contacts[index].HasNickname())?client->contacts[index].GetNickname():QString::number(msg->senderID);
+        c = incomingColor;
+    }
+    else
+    {
+        str = "Me";
+        c = outgoingColor;
+    }
+
+    QTableWidgetItem* item = new QTableWidgetItem(str);
+    item->setBackgroundColor(c);
+    item->setFlags(item->flags() ^ Qt::ItemIsEditable);
+    ui->messagesTableWidget->setItem(newRow, 0, item);
+    item = new QTableWidgetItem(msg->msg);
+    item->setBackgroundColor(c);
+    item->setFlags(item->flags() ^ Qt::ItemIsEditable);
+    ui->messagesTableWidget->setItem(newRow, 1, item);
 }
 
 //SLOTS START HERE!!
@@ -228,12 +245,27 @@ void MainWindow::Update()
 			RefreshConvs();
 		if(client->UpdateMessages())
         {
-            if(this->isMinimized())
+            if(!this->windowState().testFlag(Qt::WindowActive))
             {
-                //Play a nicer sound later (QSound?)
+                //Play a more unique sound later? (QSound?)
                 QApplication::beep();
             }
-			RefreshMessages();
+            int index = client->MsgsConvIndex();
+            if(ui->messagesTableWidget->isVisible() && index == openConvIndex)
+            {
+                unsigned int n = client->conversations[openConvIndex].GetNumberMsgs();
+                AppendMsg(client->conversations[openConvIndex].GetMsg(n-1));
+                ui->messagesTableWidget->resizeColumnToContents(1);
+            }
+            else
+            {
+                QListWidgetItem* item = ui->conversationListWidget->item(index);
+                item->setBackgroundColor(incomingColor);
+                QFont f = item->font();
+                f.setBold(true);
+                item->setFont(f);
+                ui->conversationListWidget->repaint();
+            }
         }
 	}
 	timer.start();
@@ -279,6 +311,11 @@ void MainWindow::OpenConv(QListWidgetItem* item)
 	View(ui->messagingWidget);
 	openConvIndex = item->listWidget()->currentRow();
 	ui->messageLineEdit->setFocus();
+    item->setBackgroundColor(Qt::white);
+    QFont f = item->font();
+    f.setBold(false);
+    item->setFont(f);
+    ui->conversationListWidget->repaint();
 	RefreshMessages();
 	return;
 }
@@ -335,7 +372,7 @@ void MainWindow::GetContactPublicKey()
 		return;
 
 	char* pubKey = Base64Encode(client->contacts[contactIndex].GetPublicKey(), 32);
-	DisplayMsg("Public Key", pubKey, QMessageBox::Information, QMessageBox::Ok);
+    DisplayMsg("Public Key", pubKey);
 	delete[] pubKey;
 	contactIndex = -1;
 }
@@ -368,7 +405,11 @@ void MainWindow::SetContactPublicKey()
 	if(contactIndex == -1)
 		return;
 
-	if(DisplayMsg("Set Public Key", "Are you sure you want to manually set this public key?", QMessageBox::Warning, QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes)
+    if(DisplayMsg("Set Public Key", "Are you sure you want to manually set this contact's public key? If it is not<br/>\
+                   <b>exactly</b> the same as what appears on their client, you will not be able to join<br/>\
+                   conversations the contact creates, nor add the contact to new ones. This should<br/>\
+                   only be used if you <b>know</b> that you can't get the correct key from the server.<br/>\
+                   Continue?", QMessageBox::Warning, QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes)
 	{
 		char pub64[45];
 		memset(pub64, 0, 45);
@@ -393,15 +434,15 @@ void MainWindow::SetContactPublicKey()
 						delete[] pubKey;
 					}
 					else
-						DisplayMsg("Error", "Public key was not formatted/spelled correctly", QMessageBox::Critical, QMessageBox::Ok);
+                        DisplayMsg("Error", "Public key was not formatted/spelled correctly", QMessageBox::Critical);
 				}
 				catch (int e)
 				{
-					DisplayMsg("Error", "Public key was not formatted/spelled correctly", QMessageBox::Critical, QMessageBox::Ok);
+                    DisplayMsg("Error", "Public key was not formatted/spelled correctly", QMessageBox::Critical);
 				}
 			}
 			else
-				DisplayMsg("Error", "Public key was not correct length.", QMessageBox::Critical, QMessageBox::Ok);
+                DisplayMsg("Error", "Public key was not correct length.", QMessageBox::Critical);
 		}
 	}
 	contactIndex = -1;
@@ -457,18 +498,22 @@ void MainWindow::GetMembers()
 	if(selectedConvIndex == -1)
 		return;
 
-/*	QListWidget q(this->parent());
+    //Temporary because looks ugly :P
+    QString memberStr;
 	std::vector<uint32_t> members = client->conversations[selectedConvIndex].GetUsers();
 	for(unsigned int i = 0; i < members.size(); i++)
 	{
 		if(members[i] != client->GetUserID())
 		{
 			unsigned int index = client->GetContactIndex(members[i]);
-			QListWidgetItem* item = new QListWidgetItem((client->contacts[index].HasNickname())?client->contacts[index].GetNickname():QString::number(members[i]), &q);
-			item->setIcon(QIcon(":/new/img/contact.png"));
+            if(i != 0)
+                memberStr += tr("<br/>");
+            memberStr += QString::number(members[i]);
+            if(client->contacts[index].HasNickname())
+                memberStr += tr("\t\t\t") + tr(client->contacts[index].GetNickname());
 		}
 	}
-	*/
+    DisplayMsg("Members", memberStr, QMessageBox::NoIcon);
 }
 
 void MainWindow::LeaveConv()
@@ -478,7 +523,7 @@ void MainWindow::LeaveConv()
 
 	uint32_t id = client->conversations[selectedConvIndex].GetConvID();
 	if(DisplayMsg("Warning", tr("Are you sure you want to leave conversation ") + QString::number(id)\
-				  + tr("?"), QMessageBox::Warning, QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes)
+                  + tr("?"), QMessageBox::Warning, QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes)
 		return;
 
 	if(!client->LeaveConversation(id))
@@ -509,16 +554,29 @@ void MainWindow::Create_AccountAction()
 		if(passwd[0] != '\0')
 		{
 			if(!client->ServerConnected())
-				ConnectToServer();
+            {
+                if(!ConnectToServer())
+                    return;
+            }
+
+            QMessageBox* mb = new QMessageBox(this);
+            mb->setText("Creating an account requires some local work<br/>Please be patient.");
+            mb->setAttribute(Qt::WA_DeleteOnClose);
+            mb->setTextFormat(Qt::RichText);
+            mb->setStandardButtons(QMessageBox::NoButton);
+            mb->open();
+            QCoreApplication::processEvents();          //text doesn't appear otherwise...
 
 			uint32_t userID = client->CreateUser(passwd);
+            mb->done(0);
+
 			if(userID)
-				DisplayMsg("Success!", tr("Account <b>ID ") + QString::number(userID) +tr("</b> was successfully created!"), QMessageBox::Information, QMessageBox::Ok);
+                DisplayMsg("Success!", tr("Account <b>ID ") + QString::number(userID) +tr("</b> was successfully created!"));
 			else
 				DisplayClientError();
 		}
 		else
-			DisplayMsg("Error", "Password can not be empty for security!", QMessageBox::Warning, QMessageBox::Ok);
+            DisplayMsg("Error", "Password can not be empty for security!", QMessageBox::Warning);
 	}
 	memset(passwd, 0, 512);
 }
@@ -531,6 +589,7 @@ void MainWindow::LogoutAction()
 	ui->actionLogout->setVisible(false);
 	ui->actionGet_Public_Key->setVisible(false);
 	ui->actionSync->setVisible(false);
+    ui->actionUpdate_Password->setVisible(false);
 	this->setWindowTitle("CryptoChat Client");
 
 	ui->contactListWidget->clear();
@@ -545,7 +604,7 @@ void MainWindow::LogoutAction()
 void MainWindow::GetPublicKeyAction()
 {
 	char* pubKey = Base64Encode(client->GetPublicKey(), 32);
-	DisplayMsg("Public Key", pubKey, QMessageBox::Information, QMessageBox::Ok);
+    DisplayMsg("Public Key", pubKey);
 	delete[] pubKey;
 }
 
@@ -567,7 +626,7 @@ void MainWindow::Sync()
 
 	if(!client->FetchContacts())
 	{
-		DisplayMsg("Error", client->GetError().c_str(), (client->GetError() == "No contacts added")?QMessageBox::Information:QMessageBox::Critical, QMessageBox::Ok);
+        DisplayMsg("Error", client->GetError().c_str(), (client->GetError() == "No contacts added")?QMessageBox::Information:QMessageBox::Critical);
 		return;
 	}
 	if(client->contacts.size() > 0)
@@ -575,18 +634,40 @@ void MainWindow::Sync()
 
 	if(!client->FetchConversations())
 	{
-		DisplayMsg("Error", client->GetError().c_str(), (client->GetError() == "No conversations created")?QMessageBox::Information:QMessageBox::Critical, QMessageBox::Ok);
+        DisplayMsg("Error", client->GetError().c_str(), (client->GetError() == "No conversations created")?QMessageBox::Information:QMessageBox::Critical);
 		return;
 	}
 	if(client->conversations.size() > 0)
 		RefreshConvs();
+
+    std::vector<unsigned int> msgNums;
+    std::vector<Conversation> convs = client->conversations;
+    for(unsigned int i = 0; i < convs.size(); i++)
+        msgNums.push_back(convs[i].GetNumberMsgs());
 
 	if(!client->FetchMessages())
 	{
 		DisplayClientError();
 		return;
 	}
+    for(unsigned int i = 0; i < convs.size(); i++)
+    {
+        if(msgNums[i] == client->conversations[i].GetNumberMsgs())
+            continue;
+
+        QListWidgetItem* item = ui->conversationListWidget->item(i);
+        item->setBackgroundColor(incomingColor);
+        QFont f = item->font();
+        f.setBold(true);
+        item->setFont(f);
+    }
+    ui->conversationListWidget->repaint();
 	return;
+}
+
+void MainWindow::UpdatePasswordAction()
+{
+    DisplayMsg("Coming Soon", "Hopefully before next commit...");
 }
 
 void MainWindow::View_ContactsAction()
@@ -615,7 +696,7 @@ void MainWindow::Add_ContactAction()
 	}
 	else
 	{
-		DisplayMsg("Error", "Action is not possible until signed in", QMessageBox::Critical, QMessageBox::Ok);
+        DisplayMsg("Error", "Action is not possible until signed in", QMessageBox::Critical);
 	}
 }
 
@@ -632,7 +713,7 @@ void MainWindow::NetworkingAction()
 void MainWindow::GetServerPublicKeyAction()
 {
 	char* pubKey = Base64Encode(client->GetServPublic(), 32);
-	DisplayMsg("Server's Public Key", pubKey, QMessageBox::Information, QMessageBox::Ok);
+    DisplayMsg("Server's Public Key", pubKey);
 	delete[] pubKey;
 }
 
@@ -651,17 +732,19 @@ void MainWindow::Help()
 					   <a href=\"http://en.wikipedia.org/wiki/Symmetric-key_algorithm\">Symmetric Key Cryptography</a><br/>\
 					   <a href=\"http://en.wikipedia.org/wiki/Advanced_Encryption_Standard\">AES</a><br/>\
 					   <a href=\"http://en.wikipedia.org/wiki/Scrypt\">Scrypt</a><br/><br/>\
-					   Still have questions? Maybe I'll make a website explaining usage in detail... Someday...",\
-			   QMessageBox::Information, QMessageBox::Ok);
+                       Still have questions? Maybe I'll make a website explaining usage in detail... Someday...");
 }
 
 void MainWindow::About()
 {
 	DisplayMsg("About", \
-			   "CryptoChat Client is a chatting application that (when coupled with<br/>\
-			   CryptoChat Server) is meant to deliver the best available security<br/>\
-			without compromising convenience, with the assurances of completely<br/>\
-			open source software!", QMessageBox::Information, QMessageBox::Ok);
+               "CryptoChat Client is a chatting application that (when coupled with\
+               the open source CryptoChat Server) is meant to deliver the best available security\
+               (256 bit AES symmetric key, Curve25519 ECDH key exchange, scrypt key derivation)\
+               without compromising convenience, with the assurances of completely\
+               open source software!<br/>\
+               <br/>\
+               Version: 1.0");
 }
 
 void MainWindow::Donate()
@@ -673,21 +756,21 @@ void MainWindow::Donate()
 
 void MainWindow::License()
 {
-    DisplayMsg("License", "Copyright (C) 2015  Ryan Andersen<br/>\
-						 <br/>\
-												This program is free software: you can redistribute it and/or modify<br/>\
-												it under the terms of the GNU General Public License as published by<br/>\
-												the Free Software Foundation, either version 3 of the License, or<br/>\
-												(at your option) any later version.<br/>\
-						 <br/>\
-												This program is distributed in the hope that it will be useful,<br/>\
-												but WITHOUT ANY WARRANTY; without even the implied warranty of<br/>\
-												MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the<br/>\
-												GNU General Public License for more details.<br/>\
-						 <br/>\
-												You should have received a copy of the GNU General Public License<br/>\
-												along with this program.  If not, see <a href=\"http://www.gnu.org/licenses/\">&lt;http://www.gnu.org/licenses/&gt;</a>.",\
-			   QMessageBox::Information, QMessageBox::Ok);
+    DisplayMsg("License", \
+               "Copyright (C) 2015  Ryan Andersen<br/>\
+                <br/>\
+                This program is free software: you can redistribute it and/or modify<br/>\
+                it under the terms of the GNU General Public License as published by<br/>\
+                the Free Software Foundation, either version 3 of the License, or<br/>\
+                (at your option) any later version.<br/>\
+                <br/>\
+                This program is distributed in the hope that it will be useful,<br/>\
+                but WITHOUT ANY WARRANTY; without even the implied warranty of<br/>\
+                MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the<br/>\
+                GNU General Public License for more details.<br/>\
+                <br/>\
+                You should have received a copy of the GNU General Public License<br/>\
+                along with this program.  If not, see <a href=\"http://www.gnu.org/licenses/\">&lt;http://www.gnu.org/licenses/&gt;</a>.");
 }
 
 void MainWindow::CurveLicense()
@@ -745,6 +828,11 @@ void MainWindow::CurveLicense()
     msgBox->deleteLater();
 }
 
+void MainWindow::QtLicense()
+{
+    QApplication::aboutQt();
+}
+
 //BUTTONS HERE!!!
 //-----------------------------------------------------------------------------------------------------------
 
@@ -771,6 +859,7 @@ void MainWindow::on_loginButton_clicked()
 			ui->actionLogout->setVisible(true);
 			ui->actionGet_Public_Key->setVisible(true);
 			ui->actionSync->setVisible(true);
+            ui->actionUpdate_Password->setVisible(true);
 
 			if(ui->autoSyncCB->isChecked())
 				Sync();
@@ -784,7 +873,7 @@ void MainWindow::on_loginButton_clicked()
 		}
 	}
 	else
-		DisplayMsg("Error", "Incorrectly formatted user ID", QMessageBox::Critical, QMessageBox::Ok);
+        DisplayMsg("Error", "Incorrectly formatted user ID", QMessageBox::Critical);
 }
 
 void MainWindow::on_createUserButton_clicked()
@@ -813,13 +902,8 @@ void MainWindow::on_serverAddrLine_returnPressed()
 		}
 		client->Disconnect();
 	}
-
-	ConnectToServer();
-	if(client->ServerConnected())
-	{
-		ui->actionServer_Public_key->setVisible(true);
+    if(ConnectToServer())
 		LoginAction();
-	}
 }
 
 void MainWindow::on_proxyCB_toggled(bool checked)
@@ -846,12 +930,15 @@ void MainWindow::on_messageLineEdit_returnPressed()
 	{
 		uint32_t id = client->conversations[openConvIndex].GetConvID();
 		if(client->SendMessage(id, q.data(), q.size()))
+        {
 			ui->messageLineEdit->clear();
+            unsigned int n = client->conversations[openConvIndex].GetNumberMsgs();
+            AppendMsg(client->conversations[openConvIndex].GetMsg(n-1));
+            ui->messagesTableWidget->resizeColumnToContents(1);
+            client->ClearMsgFlags();
+        }
 		else
 			DisplayClientError();
-
-        ui->messagesTableWidget->resizeColumnToContents(1);
-		RefreshMessages();
 	}
 }
 

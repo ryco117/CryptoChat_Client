@@ -6,6 +6,10 @@ DonateWindow::DonateWindow(QWidget *parent) :
 	ui(new Ui::DonateWindow)
 {
 	ui->setupUi(this);
+
+    Qt::WindowFlags flags = this->windowFlags();
+    if(flags.testFlag(Qt::WindowContextHelpButtonHint))
+        this->setWindowFlags(flags & ~Qt::WindowContextHelpButtonHint);
 }
 
 DonateWindow::~DonateWindow()

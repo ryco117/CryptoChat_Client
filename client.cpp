@@ -71,6 +71,11 @@ Client::Client()
 	proxyAddr = "127.0.0.1";
 	proxyPort = 5057;
 
+    updateMessages = false;
+    msgsConvIndex = -1;
+    updateConvs = false;
+    updateContacts = false;
+
 	//READ A SETTINGS CONFIG HERE
 	//read.settings();
 }
@@ -128,6 +133,19 @@ bool Client::UpdateMessages()
 	bool x = updateMessages;
 	updateMessages = false;
 	return x;
+}
+
+int Client::MsgsConvIndex()
+{
+    int x = msgsConvIndex;
+    msgsConvIndex = -1;
+    return x;
+}
+
+void Client::ClearMsgFlags()
+{
+    updateMessages = false;
+    msgsConvIndex = -1;
 }
 
 bool Client::UpdateConvs()
@@ -380,6 +398,7 @@ bool Client::ReceiveData()
 
 		conversations[convIndex].AddMsg(senderID, msg, decMsgLen);
 		updateMessages = true;
+        msgsConvIndex = convIndex;
 		delete[] msg;
 
 		//Send "case 13" saying we read this message successfully, and don't need to be pushed it again.
@@ -664,6 +683,7 @@ bool Client::ReceiveData()
 			break;
 		}
 		buffer[0] = '\xFF';		//Ensures that an attacker can't overwrite buffer[0] to fake a user request, followed by a malicious response
+                                //since their is no server request number xFF and never will be (negatives reserved for conv data)
 		return success;
 	}
 	errStr = "If you are reading this... something is terribly wrong...";

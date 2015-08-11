@@ -10,6 +10,10 @@ GetContactWidget::GetContactWidget(unsigned int& contactID, char* nickname, unsi
 	this->nickname = nickname;
 	this->nickLen = &nickLen;
 	ui->contactIDLine->setFocus();
+
+    Qt::WindowFlags flags = this->windowFlags();
+    if(flags.testFlag(Qt::WindowContextHelpButtonHint))
+        this->setWindowFlags(flags & ~Qt::WindowContextHelpButtonHint);
 }
 
 void GetContactWidget::on_contactIDLine_textEdited(const QString &arg1)

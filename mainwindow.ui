@@ -181,7 +181,14 @@
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_4">
        <item>
-        <widget class="QListWidget" name="conversationListWidget"/>
+        <widget class="QListWidget" name="conversationListWidget">
+         <property name="editTriggers">
+          <set>QAbstractItemView::NoEditTriggers</set>
+         </property>
+         <property name="selectionMode">
+          <enum>QAbstractItemView::SingleSelection</enum>
+         </property>
+        </widget>
        </item>
       </layout>
      </widget>
@@ -596,6 +603,7 @@
     <addaction name="separator"/>
     <addaction name="actionLicense"/>
     <addaction name="actionCurve_License"/>
+    <addaction name="actionQt_License"/>
    </widget>
    <widget class="QMenu" name="menuUser">
     <property name="title">
@@ -607,6 +615,7 @@
     <addaction name="actionLogout"/>
     <addaction name="actionGet_Public_Key"/>
     <addaction name="actionSync"/>
+    <addaction name="actionUpdate_Password"/>
    </widget>
    <widget class="QMenu" name="menuContacts">
     <property name="title">
@@ -734,6 +743,25 @@
   <action name="actionServer_Public_key">
    <property name="text">
     <string>Server Public key</string>
+   </property>
+  </action>
+  <action name="actionUpdate_Password">
+   <property name="text">
+    <string>Update Password</string>
+   </property>
+  </action>
+  <action name="actionCreateConvWithContact">
+   <property name="text">
+    <string>Create Conv With Contact</string>
+   </property>
+  </action>
+  <action name="actionQt_License">
+   <property name="icon">
+    <iconset resource="resource.qrc">
+     <normaloff>:/new/img/Qt Icon.png</normaloff>:/new/img/Qt Icon.png</iconset>
+   </property>
+   <property name="text">
+    <string>Qt License</string>
    </property>
   </action>
  </widget>

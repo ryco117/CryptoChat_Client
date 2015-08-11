@@ -6,5 +6,6 @@
         <file>contact.png</file>
         <file>conv_multiple.png</file>
         <file>conv_single.png</file>
+        <file>Qt Icon.png</file>
     </qresource>
 </RCC>

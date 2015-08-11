@@ -91,3 +91,6 @@ RESOURCES += \
 
 OTHER_FILES += \
     LICENSE
+
+DISTFILES += \
+    Qt Icon.png

@@ -62,13 +62,14 @@ private:
 	unsigned char threadNum;
 
 	//Networking
-	int Server;														//Socket for connecting to server
+    int Server;                             //Socket for connecting to server
 	sockaddr_in socketInfo;
 	bool serverConnected;
 	bool signedIn;
-	bool updateMessages;
-	bool updateConvs;
-	bool updateContacts;
+    bool updateMessages;                    //Did a new message come in (that hasn't been checked for)
+    int msgsConvIndex;                      //The conversation index a new message was added to, only relevant if UpdateMessages() == true
+    bool updateConvs;                       //Was someone added to/removed from a conversation (or we were added to one)
+    bool updateContacts;                    //Not sure when this will apply yet, but may be handy to have..
 
 	//Vars that most functions will use
 	int err;
@@ -94,6 +95,8 @@ public:
 	bool ServerConnected() const;
 	bool SignedIn() const;
 	bool UpdateMessages();
+    int MsgsConvIndex();
+    void ClearMsgFlags();
 	bool UpdateConvs();
 	bool UpdateContacts();
 	bool SetServer(std::string server);

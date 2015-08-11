@@ -38,6 +38,8 @@ private:
 	Ui::MainWindow* ui;
 	QTimer timer;
 	QMessageBox* msgBox;
+    QColor outgoingColor;
+    QColor incomingColor;
 	QList<QAction*> contactsContextMenu;
 	int contactIndex;
 	QList<QAction*> convsContextMenu;
@@ -52,21 +54,22 @@ private:
 	void RefreshConvs();
 	void RefreshMessages();
 	void View(QWidget* w);
-	int DisplayMsg(QString title, QString msg, QMessageBox::Icon level, QMessageBox::StandardButton buttons);
+    int DisplayMsg(QString title, QString msg, QMessageBox::Icon level = QMessageBox::Information, QMessageBox::StandardButton buttons = QMessageBox::Ok);
 	void DisplayClientError();
+    void AppendMsg(const Msg* msg);
 
 private slots:
-	//Weird Slots
+    //Weird Slots (Don't belong in other catagories completely)
 	void Update();
 	void OpenConvWithContact(QListWidgetItem* item);
 	void OpenConv(QListWidgetItem* item);
+    void CreateConv();
 
 	//Right Click Slots
 	void userConvListMenuRequested(const QPoint&);
 	void userContactListMenuRequested(const QPoint&);
 
 	//Contact Right Click Menu
-	void CreateConv();
 	void GetContactPublicKey();
 	void UpdateNickname();
 	void SetContactPublicKey();
@@ -83,6 +86,7 @@ private slots:
 	void LogoutAction();
 	void GetPublicKeyAction();
 	void Sync();
+    void UpdatePasswordAction();
 	void View_ContactsAction();
 	void Add_ContactAction();
 	void ConversationsAction();
@@ -94,6 +98,7 @@ private slots:
 	void Donate();
 	void License();
 	void CurveLicense();
+    void QtLicense();
 
 	//Buttons, Line Edits, Check Boxes
 	void on_passwordLine_returnPressed();
